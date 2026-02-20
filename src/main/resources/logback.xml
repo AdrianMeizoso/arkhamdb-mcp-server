@@ -1,0 +1,16 @@
+<configuration>
+    <!-- Send all logs to STDERR to avoid interfering with STDIO MCP protocol on STDOUT -->
+    <appender name="STDERR" class="ch.qos.logback.core.ConsoleAppender">
+        <target>System.err</target>
+        <encoder>
+            <pattern>%d{HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n</pattern>
+        </encoder>
+    </appender>
+
+    <root level="INFO">
+        <appender-ref ref="STDERR"/>
+    </root>
+
+    <!-- Reduce noise from Ktor -->
+    <logger name="io.ktor" level="WARN"/>
+</configuration>

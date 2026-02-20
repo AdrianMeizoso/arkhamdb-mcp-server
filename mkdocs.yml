@@ -1,0 +1,7 @@
+site_name: 'arkhamdb-mcp-server'
+plugins:
+  - techdocs-core
+  - callouts
+  - kroki:
+      fence_prefix: ""
+      enable_diagramsnet: True
