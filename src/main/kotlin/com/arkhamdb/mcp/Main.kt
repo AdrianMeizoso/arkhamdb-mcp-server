@@ -5,6 +5,7 @@ import com.arkhamdb.mcp.resources.registerPdfResources
 import com.arkhamdb.mcp.tools.registerCardTools
 import com.arkhamdb.mcp.tools.registerDecklistTools
 import com.arkhamdb.mcp.tools.registerPackTools
+import com.arkhamdb.mcp.tools.registerPdfTools
 import io.modelcontextprotocol.kotlin.sdk.Implementation
 import io.modelcontextprotocol.kotlin.sdk.ServerCapabilities
 import io.modelcontextprotocol.kotlin.sdk.server.Server
@@ -48,6 +49,7 @@ fun main(): Unit = runBlocking {
         registerCardTools(server, arkhamClient)
         registerPackTools(server, arkhamClient)
         registerDecklistTools(server, arkhamClient)
+        registerPdfTools(server)
 
         // 4. Register all resources
         logger.info("Registering resources...")
