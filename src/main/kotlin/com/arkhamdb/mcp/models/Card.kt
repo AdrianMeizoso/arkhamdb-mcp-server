@@ -59,5 +59,9 @@ data class Card(
     val restrictions: Restrictions? = null,
     val subtype_code: String? = null,
     val subtype_name: String? = null,
-    val url: String? = null
+    val url: String? = null,
+    val encounter_code: String? = null,
+    val encounter_name: String? = null,
+    val encounter_position: Int? = null,
+    val linked_card: Card? = null
 )

@@ -2,6 +2,7 @@ package com.arkhamdb.mcp
 
 import com.arkhamdb.mcp.resources.registerResources
 import com.arkhamdb.mcp.resources.registerPdfResources
+import com.arkhamdb.mcp.tools.registerCardFaqTools
 import com.arkhamdb.mcp.tools.registerCardTools
 import com.arkhamdb.mcp.tools.registerDecklistTools
 import com.arkhamdb.mcp.tools.registerPackTools
@@ -50,6 +51,7 @@ fun main(): Unit = runBlocking {
         registerPackTools(server, arkhamClient)
         registerDecklistTools(server, arkhamClient)
         registerPdfTools(server)
+        registerCardFaqTools(server, arkhamClient)
 
         // 4. Register all resources
         logger.info("Registering resources...")

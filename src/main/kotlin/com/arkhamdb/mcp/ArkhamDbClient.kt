@@ -1,6 +1,7 @@
 package com.arkhamdb.mcp
 
 import com.arkhamdb.mcp.models.Card
+import com.arkhamdb.mcp.models.CardReview
 import com.arkhamdb.mcp.models.Decklist
 import com.arkhamdb.mcp.models.Pack
 import io.ktor.client.*
@@ -81,6 +82,34 @@ class ArkhamDbClient {
         packs
     }.onFailure { error ->
         logger.error("Failed to fetch packs", error)
+    }
+
+    /**
+     * Fetch all cards including encounter cards from the ArkhamDB API.
+     */
+    suspend fun getAllCardsWithEncounter(): Result<List<Card>> = runCatching {
+        logger.info("Fetching all cards (including encounter) from ArkhamDB API")
+        val response = httpClient.get("$baseUrl/cards/") {
+            parameter("encounter", "1")
+        }
+        val cards: List<Card> = response.body()
+        logger.info("Retrieved ${cards.size} cards (with encounter)")
+        cards
+    }.onFailure { error ->
+        logger.error("Failed to fetch cards with encounter", error)
+    }
+
+    /**
+     * Fetch reviews/rulings for a specific card by its code.
+     */
+    suspend fun getCardReviews(code: String): Result<List<CardReview>> = runCatching {
+        logger.info("Fetching reviews for card: $code")
+        val response = httpClient.get("$baseUrl/reviews/$code")
+        val reviews: List<CardReview> = response.body()
+        logger.info("Retrieved ${reviews.size} reviews for card $code")
+        reviews
+    }.onFailure { error ->
+        logger.error("Failed to fetch reviews for card $code", error)
     }
 
     /**

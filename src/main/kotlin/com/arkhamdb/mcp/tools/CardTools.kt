@@ -15,12 +15,17 @@ fun registerCardTools(server: Server, client: ArkhamDbClient) {
     // Tool: search_cards
     server.addTool(
         name = "search_cards",
-        description = "Search for Arkham Horror LCG cards with optional filters. Returns a list of cards matching the criteria.",
+        description = """Search for Arkham Horror LCG cards with optional filters. Returns a list of cards matching the criteria.
+IMPORTANT: Card data is in Spanish. Use Spanish terms for searches:
+- Traits: "Hechizo" (not "Spell"), "Aliado" (not "Ally"), "Arma" (not "Weapon"), "Objeto" (not "Item")
+- Types: use type codes in English (asset, event, skill, investigator, treachery, enemy, agenda, act, location)
+- Faction codes are in English (guardian, seeker, rogue, mystic, survivor, neutral)
+- Card names and text are in Spanish""",
         inputSchema = ToolSchema(
             properties = buildJsonObject {
                 put("name", buildJsonObject {
                     put("type", JsonPrimitive("string"))
-                    put("description", JsonPrimitive("Card name substring search (case-insensitive)"))
+                    put("description", JsonPrimitive("Búsqueda por nombre de carta (case-insensitive, en español)"))
                 })
                 put("faction", buildJsonObject {
                     put("type", JsonPrimitive("string"))
@@ -28,11 +33,19 @@ fun registerCardTools(server: Server, client: ArkhamDbClient) {
                 })
                 put("type", buildJsonObject {
                     put("type", JsonPrimitive("string"))
-                    put("description", JsonPrimitive("Filter by card type (asset, event, skill, investigator, treachery, enemy, etc.)"))
+                    put("description", JsonPrimitive("Filter by card type code (asset, event, skill, investigator, treachery, enemy, agenda, act, location)"))
                 })
                 put("traits", buildJsonObject {
                     put("type", JsonPrimitive("string"))
-                    put("description", JsonPrimitive("Filter by card traits (weapon, spell, ally, item, etc.) - matches if any trait contains this text"))
+                    put("description", JsonPrimitive("Filtrar por rasgo en español (e.g., 'Hechizo', 'Aliado', 'Arma') - coincide si algún rasgo contiene este texto"))
+                })
+                put("pack_code", buildJsonObject {
+                    put("type", JsonPrimitive("string"))
+                    put("description", JsonPrimitive("Filter by pack code (e.g., 'core', 'dwl', 'ptc')"))
+                })
+                put("include_encounter", buildJsonObject {
+                    put("type", JsonPrimitive("boolean"))
+                    put("description", JsonPrimitive("Include encounter cards (traiciones, enemigos, lugares de escenario). Default: false"))
                 })
             }
         )
@@ -43,14 +56,17 @@ fun registerCardTools(server: Server, client: ArkhamDbClient) {
             val factionFilter = arguments["faction"]?.jsonPrimitive?.contentOrNull
             val typeFilter = arguments["type"]?.jsonPrimitive?.contentOrNull
             val traitsFilter = arguments["traits"]?.jsonPrimitive?.contentOrNull
+            val packFilter = arguments["pack_code"]?.jsonPrimitive?.contentOrNull
+            val includeEncounter = arguments["include_encounter"]?.jsonPrimitive?.booleanOrNull ?: false
 
-            logger.info("Searching cards with filters - name: $nameFilter, faction: $factionFilter, type: $typeFilter, traits: $traitsFilter")
+            logger.info("Searching cards - name: $nameFilter, faction: $factionFilter, type: $typeFilter, traits: $traitsFilter, pack: $packFilter, encounter: $includeEncounter")
 
-            client.getAllCards()
+            val cardsResult = if (includeEncounter) client.getAllCardsWithEncounter() else client.getAllCards()
+
+            cardsResult
                 .map { cards ->
                     var filtered = cards
 
-                    // Apply name filter
                     nameFilter?.let { name ->
                         filtered = filtered.filter { card ->
                             card.name.contains(name, ignoreCase = true) ||
@@ -58,24 +74,27 @@ fun registerCardTools(server: Server, client: ArkhamDbClient) {
                         }
                     }
 
-                    // Apply faction filter
                     factionFilter?.let { faction ->
                         filtered = filtered.filter { card ->
                             card.faction_code.equals(faction, ignoreCase = true)
                         }
                     }
 
-                    // Apply type filter
                     typeFilter?.let { type ->
                         filtered = filtered.filter { card ->
                             card.type_code.equals(type, ignoreCase = true)
                         }
                     }
 
-                    // Apply traits filter
                     traitsFilter?.let { traits ->
                         filtered = filtered.filter { card ->
                             card.traits?.contains(traits, ignoreCase = true) == true
+                        }
+                    }
+
+                    packFilter?.let { pack ->
+                        filtered = filtered.filter { card ->
+                            card.pack_code.equals(pack, ignoreCase = true)
                         }
                     }
 
@@ -107,7 +126,7 @@ fun registerCardTools(server: Server, client: ArkhamDbClient) {
     // Tool: get_card
     server.addTool(
         name = "get_card",
-        description = "Get detailed information about a specific Arkham Horror LCG card by its code (e.g., '01001' for Roland Banks).",
+        description = "Get detailed information about a specific Arkham Horror LCG card by its code (e.g., '01001' for Roland Banks). Card data is in Spanish.",
         inputSchema = ToolSchema(
             properties = buildJsonObject {
                 put("code", buildJsonObject {
@@ -145,6 +164,82 @@ fun registerCardTools(server: Server, client: ArkhamDbClient) {
                     logger.error("Error getting card $code", error)
                     CallToolResult(
                         content = listOf(TextContent(text = "Card not found: $code. Error: ${error.message}")),
+                        isError = true
+                    )
+                }
+        }
+    }
+
+    // Tool: get_cards_by_pack
+    server.addTool(
+        name = "get_cards_by_pack",
+        description = """Get all cards from a specific pack/expansion, including encounter cards (enemies, treacheries, locations).
+Use this tool to:
+- Browse all cards in a campaign or pack (e.g., 'core' for Caja Básica)
+- Find scenario encounter cards (enemies, traiciones, locations) not available through regular search
+- Review campaign content for deck-building or campaign planning
+Card data is in Spanish.""",
+        inputSchema = ToolSchema(
+            properties = buildJsonObject {
+                put("pack_code", buildJsonObject {
+                    put("type", JsonPrimitive("string"))
+                    put("description", JsonPrimitive("Pack code (e.g., 'core', 'dwl', 'ptc', 'tfa', 'tcu', 'tde', 'tic', 'eoe', 'tsk')"))
+                })
+                put("type_code", buildJsonObject {
+                    put("type", JsonPrimitive("string"))
+                    put("description", JsonPrimitive("Optional: filter by card type (asset, event, skill, investigator, treachery, enemy, agenda, act, location)"))
+                })
+            },
+            required = listOf("pack_code")
+        )
+    ) { request ->
+        runBlocking {
+            val arguments = request.params.arguments ?: JsonObject(emptyMap())
+            val packCode = arguments["pack_code"]?.jsonPrimitive?.contentOrNull
+            val typeCode = arguments["type_code"]?.jsonPrimitive?.contentOrNull
+
+            if (packCode == null) {
+                return@runBlocking CallToolResult(
+                    content = listOf(TextContent(text = "Error: 'pack_code' parameter is required")),
+                    isError = true
+                )
+            }
+
+            logger.info("Getting cards for pack: $packCode, type: $typeCode")
+
+            client.getAllCardsWithEncounter()
+                .map { cards ->
+                    var filtered = cards.filter { card ->
+                        card.pack_code.equals(packCode, ignoreCase = true)
+                    }
+
+                    typeCode?.let { type ->
+                        filtered = filtered.filter { card ->
+                            card.type_code.equals(type, ignoreCase = true)
+                        }
+                    }
+
+                    filtered = filtered.sortedBy { it.position ?: Int.MAX_VALUE }
+
+                    logger.info("Found ${filtered.size} cards for pack $packCode")
+
+                    CallToolResult(
+                        content = listOf(
+                            TextContent(
+                                text = Json.encodeToString(
+                                    kotlinx.serialization.builtins.ListSerializer(
+                                        com.arkhamdb.mcp.models.Card.serializer()
+                                    ),
+                                    filtered
+                                )
+                            )
+                        )
+                    )
+                }
+                .getOrElse { error ->
+                    logger.error("Error getting cards for pack $packCode", error)
+                    CallToolResult(
+                        content = listOf(TextContent(text = "Error getting cards for pack $packCode: ${error.message}")),
                         isError = true
                     )
                 }

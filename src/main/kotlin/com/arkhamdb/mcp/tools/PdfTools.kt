@@ -71,12 +71,13 @@ Use this tool when the user asks about:
 - Specific game concepts (actions, reactions, triggers, keywords, etc.)
 - Setup or scenario instructions
 - Card interactions or rule clarifications
-Optionally provide a 'query' to search for a specific topic within the rules.""",
+Optionally provide a 'query' to search for a specific topic within the rules.
+IMPORTANT: Las reglas están en español. Usar términos en español en la búsqueda (e.g., 'perdición', 'acción', 'evadir', 'prueba de habilidad', 'horror', 'daño').""",
         inputSchema = ToolSchema(
             properties = buildJsonObject {
                 put("query", buildJsonObject {
                     put("type", JsonPrimitive("string"))
-                    put("description", JsonPrimitive("Optional keyword or topic to search within the rules (e.g., 'evade', 'action', 'doom')"))
+                    put("description", JsonPrimitive("Término o tema a buscar en las reglas (en español, e.g., 'evadir', 'acción', 'perdición', 'prueba de habilidad')"))
                 })
             }
         )
@@ -115,12 +116,13 @@ Use this tool when the user asks about:
 - FAQs, frequently asked questions, or controversial rules
 - Whether a card has been updated or changed in an errata
 - Specific card interactions that may be in the FAQ
-Optionally provide a 'query' to search for a specific card name or topic.""",
+Optionally provide a 'query' to search for a specific card name or topic.
+IMPORTANT: El FAQ está en español. Usar términos en español en la búsqueda (e.g., 'perdición', 'prueba de habilidad', 'evadir', 'acción gratuita').""",
         inputSchema = ToolSchema(
             properties = buildJsonObject {
                 put("query", buildJsonObject {
                     put("type", JsonPrimitive("string"))
-                    put("description", JsonPrimitive("Optional card name or topic to search within the FAQ (e.g., 'Barricade', 'skill test')"))
+                    put("description", JsonPrimitive("Nombre de carta o tema a buscar en el FAQ (en español, e.g., 'Barricada', 'prueba de habilidad', 'perdición')"))
                 })
             }
         )
