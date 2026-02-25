@@ -5,61 +5,9 @@ import io.modelcontextprotocol.kotlin.sdk.server.Server
 import io.modelcontextprotocol.kotlin.sdk.types.TextContent
 import io.modelcontextprotocol.kotlin.sdk.types.ToolSchema
 import kotlinx.serialization.json.*
-import org.apache.pdfbox.Loader
-import org.apache.pdfbox.text.PDFTextStripper
 import org.slf4j.LoggerFactory
-import java.io.File
 
 private val logger = LoggerFactory.getLogger("PdfTools")
-
-private fun loadPdfText(fileName: String): String {
-    val resourceStream = object {}::class.java.classLoader.getResourceAsStream("pdfs/$fileName")
-    return if (resourceStream != null) {
-        logger.info("Loading PDF from resources: $fileName")
-        resourceStream.use { stream ->
-            val document = Loader.loadPDF(stream.readBytes())
-            val stripper = PDFTextStripper()
-            val text = stripper.getText(document)
-            document.close()
-            text
-        }
-    } else {
-        val externalPath = File("src/main/resources/pdfs/$fileName")
-        if (externalPath.exists()) {
-            logger.info("Loading PDF from file: ${externalPath.absolutePath}")
-            val document = Loader.loadPDF(externalPath)
-            val stripper = PDFTextStripper()
-            val text = stripper.getText(document)
-            document.close()
-            text
-        } else {
-            throw IllegalStateException("PDF not found: $fileName. Place it in src/main/resources/pdfs/")
-        }
-    }
-}
-
-private fun searchInText(text: String, query: String): String {
-    val lines = text.lines()
-    val queryLower = query.lowercase()
-    val matchingLines = mutableListOf<String>()
-    val contextWindow = 5
-
-    lines.forEachIndexed { index, line ->
-        if (line.lowercase().contains(queryLower)) {
-            val start = maxOf(0, index - contextWindow)
-            val end = minOf(lines.size - 1, index + contextWindow)
-            matchingLines.add("--- Match at line ${index + 1} ---")
-            matchingLines.addAll(lines.subList(start, end + 1))
-            matchingLines.add("")
-        }
-    }
-
-    return if (matchingLines.isEmpty()) {
-        "No results found for: \"$query\""
-    } else {
-        matchingLines.joinToString("\n")
-    }
-}
 
 fun registerPdfTools(server: Server) {
     // Tool: get_rules
@@ -88,10 +36,10 @@ IMPORTANT: Las reglas están en español. Usar términos en español en la búsq
         logger.info("get_rules called, query: $query")
 
         try {
-            val fullText = loadPdfText("arkham_horror_rules.pdf")
+            val fullText = PdfCache.load("arkham_horror_rules.pdf")
             val result = if (query != null) {
                 logger.info("Searching rules for: $query")
-                val searchResult = searchInText(fullText, query)
+                val searchResult = PdfCache.search(fullText, query)
                 "## Rules Reference — Search: \"$query\"\n\n$searchResult"
             } else {
                 "## Arkham Horror LCG — Rules Reference\n\n$fullText"
@@ -133,10 +81,10 @@ IMPORTANT: El FAQ está en español. Usar términos en español en la búsqueda 
         logger.info("get_faq called, query: $query")
 
         try {
-            val fullText = loadPdfText("arkham_horror_faq.pdf")
+            val fullText = PdfCache.load("arkham_horror_faq.pdf")
             val result = if (query != null) {
                 logger.info("Searching FAQ for: $query")
-                val searchResult = searchInText(fullText, query)
+                val searchResult = PdfCache.search(fullText, query)
                 "## FAQ & Errata — Search: \"$query\"\n\n$searchResult"
             } else {
                 "## Arkham Horror LCG — FAQ & Errata\n\n$fullText"

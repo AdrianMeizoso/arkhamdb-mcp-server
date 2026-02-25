@@ -1,13 +1,11 @@
 package com.arkhamdb.mcp.resources
 
+import com.arkhamdb.mcp.tools.PdfCache
 import io.modelcontextprotocol.kotlin.sdk.server.Server
 import io.modelcontextprotocol.kotlin.sdk.types.ReadResourceResult
 import io.modelcontextprotocol.kotlin.sdk.types.TextResourceContents
 import kotlinx.coroutines.runBlocking
-import org.apache.pdfbox.Loader
-import org.apache.pdfbox.text.PDFTextStripper
 import org.slf4j.LoggerFactory
-import java.io.File
 
 private val logger = LoggerFactory.getLogger("PdfResources")
 
@@ -20,40 +18,6 @@ data class PdfResourceConfig(
     val description: String,
     val fileName: String
 )
-
-/**
- * Helper function to load and extract text from a PDF file
- */
-private fun loadPdfText(pdfPath: String): String {
-    // Try to load from resources first
-    val resourceStream = PdfResourceConfig::class.java.classLoader.getResourceAsStream(pdfPath)
-
-    return if (resourceStream != null) {
-        logger.info("Loading PDF from resources: $pdfPath")
-        resourceStream.use { stream ->
-            val document = Loader.loadPDF(stream.readBytes())
-            val stripper = PDFTextStripper()
-            val text = stripper.getText(document)
-            document.close()
-            text
-        }
-    } else {
-        // Fallback to external file path
-        val externalPath = File("src/main/resources/$pdfPath")
-        if (externalPath.exists()) {
-            logger.info("Loading PDF from file: ${externalPath.absolutePath}")
-            val document = Loader.loadPDF(externalPath)
-            val stripper = PDFTextStripper()
-            val text = stripper.getText(document)
-            document.close()
-            text
-        } else {
-            throw IllegalStateException(
-                "PDF not found. Please place '${externalPath.name}' in src/main/resources/pdfs/"
-            )
-        }
-    }
-}
 
 /**
  * Register a single PDF resource
@@ -69,8 +33,7 @@ private fun registerPdfResource(server: Server, config: PdfResourceConfig) {
             logger.info("Reading ${config.name}")
 
             try {
-                val pdfPath = "pdfs/${config.fileName}"
-                val text = loadPdfText(pdfPath)
+                val text = PdfCache.load(config.fileName)
 
                 logger.info("Successfully extracted ${text.length} characters from ${config.fileName}")
 

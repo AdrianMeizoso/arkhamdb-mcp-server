@@ -7,59 +7,9 @@ import io.modelcontextprotocol.kotlin.sdk.types.TextContent
 import io.modelcontextprotocol.kotlin.sdk.types.ToolSchema
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.*
-import org.apache.pdfbox.Loader
-import org.apache.pdfbox.text.PDFTextStripper
 import org.slf4j.LoggerFactory
-import java.io.File
 
 private val logger = LoggerFactory.getLogger("CardFaqTools")
-
-private fun loadFaqPdfText(): String? {
-    val resourceStream = object {}::class.java.classLoader.getResourceAsStream("pdfs/arkham_horror_faq.pdf")
-    return if (resourceStream != null) {
-        resourceStream.use { stream ->
-            val document = Loader.loadPDF(stream.readBytes())
-            val stripper = PDFTextStripper()
-            val text = stripper.getText(document)
-            document.close()
-            text
-        }
-    } else {
-        val externalPath = File("src/main/resources/pdfs/arkham_horror_faq.pdf")
-        if (externalPath.exists()) {
-            val document = Loader.loadPDF(externalPath)
-            val stripper = PDFTextStripper()
-            val text = stripper.getText(document)
-            document.close()
-            text
-        } else {
-            null
-        }
-    }
-}
-
-private fun searchFaqForCard(faqText: String, cardName: String): String {
-    val lines = faqText.lines()
-    val queryLower = cardName.lowercase()
-    val matchingLines = mutableListOf<String>()
-    val contextWindow = 8
-
-    lines.forEachIndexed { index, line ->
-        if (line.lowercase().contains(queryLower)) {
-            val start = maxOf(0, index - contextWindow)
-            val end = minOf(lines.size - 1, index + contextWindow)
-            matchingLines.add("--- Coincidencia en línea ${index + 1} ---")
-            matchingLines.addAll(lines.subList(start, end + 1))
-            matchingLines.add("")
-        }
-    }
-
-    return if (matchingLines.isEmpty()) {
-        "No se encontraron resultados en el FAQ para: \"$cardName\""
-    } else {
-        matchingLines.joinToString("\n")
-    }
-}
 
 fun registerCardFaqTools(server: Server, client: ArkhamDbClient) {
     server.addTool(
@@ -149,17 +99,11 @@ Use this when a player wants to know how a specific card works in edge cases."""
                 result.appendLine()
                 result.appendLine("## FAQ Oficial (PDF en Español)")
                 result.appendLine()
-                try {
-                    val faqText = loadFaqPdfText()
-                    if (faqText != null) {
-                        val faqResult = searchFaqForCard(faqText, searchName)
-                        result.appendLine(faqResult)
-                    } else {
-                        result.appendLine("_El PDF del FAQ no está disponible. Coloca 'arkham_horror_faq.pdf' en src/main/resources/pdfs/_")
-                    }
-                } catch (e: Exception) {
-                    logger.error("Error loading FAQ PDF for card FAQ tool", e)
-                    result.appendLine("_Error al cargar el PDF del FAQ: ${e.message}_")
+                val faqText = PdfCache.loadOrNull("arkham_horror_faq.pdf")
+                if (faqText != null) {
+                    result.appendLine(PdfCache.search(faqText, searchName, contextWindow = 8))
+                } else {
+                    result.appendLine("_El PDF del FAQ no está disponible. Coloca 'arkham_horror_faq.pdf' en src/main/resources/pdfs/_")
                 }
             }
 
