@@ -1,0 +1,205 @@
+name: Manual Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version (e.g., 1.0.1)'
+        required: true
+        type: string
+      prerelease:
+        description: 'Mark as pre-release'
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Validate version format
+        run: |
+          VERSION="${{ github.event.inputs.version }}"
+          if ! [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "❌ Error: Version must be in format X.Y.Z (e.g., 1.0.1)"
+            exit 1
+          fi
+          echo "✅ Version format valid: $VERSION"
+
+      - name: Check if tag exists
+        run: |
+          VERSION="${{ github.event.inputs.version }}"
+          TAG="v${VERSION}"
+          if git rev-parse "$TAG" >/dev/null 2>&1; then
+            echo "❌ Error: Tag $TAG already exists"
+            exit 1
+          fi
+          echo "✅ Tag $TAG is available"
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+          cache: 'gradle'
+
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
+
+      - name: Update version in build.gradle.kts
+        run: |
+          VERSION="${{ github.event.inputs.version }}"
+          echo "📝 Updating version to $VERSION"
+          sed -i 's/version = ".*"/version = "'"$VERSION"'"/' build.gradle.kts
+
+          echo "📄 Updated build.gradle.kts:"
+          grep "^version = " build.gradle.kts
+
+      - name: Run tests
+        run: ./gradlew test
+
+      - name: Build fat JAR
+        run: ./gradlew clean shadowJar
+
+      - name: Verify JAR exists
+        id: jar_info
+        run: |
+          JAR_FILE=$(find build/libs -name "*-all.jar" -type f)
+          if [ ! -f "$JAR_FILE" ]; then
+            echo "❌ Error: Fat JAR not found"
+            exit 1
+          fi
+
+          JAR_NAME=$(basename "$JAR_FILE")
+          JAR_SIZE=$(du -h "$JAR_FILE" | cut -f1)
+
+          echo "jar_file=$JAR_FILE" >> $GITHUB_OUTPUT
+          echo "jar_name=$JAR_NAME" >> $GITHUB_OUTPUT
+          echo "jar_size=$JAR_SIZE" >> $GITHUB_OUTPUT
+
+          echo "✅ Built: $JAR_NAME"
+          echo "📦 Size: $JAR_SIZE"
+
+      - name: Configure git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Commit version change
+        run: |
+          VERSION="${{ github.event.inputs.version }}"
+          git add build.gradle.kts
+          git commit -m "Release version $VERSION"
+          echo "✅ Committed version change"
+
+      - name: Create and push tag
+        run: |
+          VERSION="${{ github.event.inputs.version }}"
+          TAG="v${VERSION}"
+
+          git tag -a "$TAG" -m "Release $VERSION"
+          echo "✅ Created tag $TAG"
+
+          git push origin HEAD:${{ github.ref_name }}
+          git push origin "$TAG"
+          echo "✅ Pushed commit and tag"
+
+      - name: Generate release notes
+        id: release_notes
+        run: |
+          VERSION="${{ github.event.inputs.version }}"
+          TAG="v${VERSION}"
+
+          # Get the previous tag
+          PREV_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
+
+          # Generate changelog
+          if [ -z "$PREV_TAG" ]; then
+            CHANGELOG=$(git log --pretty=format:"- %s (%h)" --no-merges)
+          else
+            CHANGELOG=$(git log ${PREV_TAG}..HEAD --pretty=format:"- %s (%h)" --no-merges)
+          fi
+
+          # Create release notes
+          cat > release_notes.md << EOF
+          ## ArkhamDB MCP Server $TAG
+
+          ### Installation
+
+          Download the JAR file below and configure it in your Claude Desktop:
+
+          \`\`\`json
+          {
+            "mcpServers": {
+              "arkhamdb": {
+                "command": "java",
+                "args": ["-jar", "/path/to/${{ steps.jar_info.outputs.jar_name }}"]
+              }
+            }
+          }
+          \`\`\`
+
+          ### Requirements
+          - Java 21 or higher
+
+          ### Changes
+          $CHANGELOG
+
+          ### Resources
+          - [Installation Guide](https://github.com/${{ github.repository }}#installation)
+          - [ArkhamDB API](https://arkhamdb.com/api/)
+          - [Model Context Protocol](https://modelcontextprotocol.io/)
+
+          ---
+
+          **JAR Size:** ${{ steps.jar_info.outputs.jar_size }}
+          EOF
+
+          cat release_notes.md
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: Release v${{ github.event.inputs.version }}
+          tag_name: v${{ github.event.inputs.version }}
+          body_path: release_notes.md
+          files: ${{ steps.jar_info.outputs.jar_file }}
+          draft: false
+          prerelease: ${{ github.event.inputs.prerelease }}
+          generate_release_notes: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: arkhamdb-mcp-server-${{ github.event.inputs.version }}
+          path: build/libs/*-all.jar
+          retention-days: 30
+
+      - name: Release summary
+        run: |
+          VERSION="${{ github.event.inputs.version }}"
+          echo "## 🎉 Release Complete!" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Version:** v${VERSION}" >> $GITHUB_STEP_SUMMARY
+          echo "**JAR:** ${{ steps.jar_info.outputs.jar_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Size:** ${{ steps.jar_info.outputs.jar_size }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 📦 Release URL" >> $GITHUB_STEP_SUMMARY
+          echo "https://github.com/${{ github.repository }}/releases/tag/v${VERSION}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 🚀 Next Steps" >> $GITHUB_STEP_SUMMARY
+          echo "1. Verify the release on GitHub" >> $GITHUB_STEP_SUMMARY
+          echo "2. Test the downloaded JAR" >> $GITHUB_STEP_SUMMARY
+          echo "3. Submit to Smithery.ai" >> $GITHUB_STEP_SUMMARY

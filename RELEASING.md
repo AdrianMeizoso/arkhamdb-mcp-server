@@ -2,11 +2,46 @@
 
 This document describes how to create a new release of the ArkhamDB MCP Server.
 
-## Automated Release (Recommended)
+## Three Ways to Release
+
+You have three options for creating a release:
+
+1. **GitHub UI (Easiest)** - Click buttons in GitHub Actions
+2. **Local Script (Recommended for development)** - Automated script with confirmation
+3. **Manual (Full control)** - Step-by-step git commands
+
+---
+
+## Method 1: GitHub UI (Easiest) ⭐
+
+**Best for:** Quick releases, no local setup needed, works from anywhere
+
+### Steps:
+
+1. Go to **Actions** tab on GitHub
+2. Select **Manual Release** workflow
+3. Click **Run workflow**
+4. Enter version (e.g., `1.0.1`)
+5. Click **Run workflow**
+
+That's it! GitHub Actions handles everything automatically.
+
+**See:** `.github/MANUAL_RELEASE_GUIDE.md` for detailed instructions.
+
+**Direct link:**
+```
+https://github.com/<your-username>/arkhamdb-mcp-server/actions/workflows/manual-release.yml
+```
+
+---
+
+## Method 2: Local Script (Recommended)
+
+**Best for:** Local development, testing before push, interactive confirmation
 
 ### Using the Release Script
 
-The easiest way to create a release is using the provided script:
+The easiest way to create a release locally is using the provided script:
 
 ```bash
 ./scripts/release.sh <version>
@@ -43,7 +78,11 @@ You can monitor the progress at:
 https://github.com/<your-username>/arkhamdb-mcp-server/actions
 ```
 
-## Manual Release Process
+---
+
+## Method 3: Manual Release Process
+
+**Best for:** Maximum control, custom workflows, troubleshooting
 
 If you prefer to do it manually or need more control:
 
@@ -72,6 +111,23 @@ git push origin v1.0.1
 ### 3. Wait for GitHub Actions
 
 The release workflow will automatically trigger when you push a tag matching `v*.*.*`.
+
+---
+
+## 🆚 Method Comparison
+
+| Feature | GitHub UI | Local Script | Manual |
+|---------|-----------|--------------|--------|
+| **Ease of use** | 🟢 Easiest | 🟡 Easy | 🔴 Complex |
+| **Setup required** | ❌ None | ✅ Local repo | ✅ Local repo |
+| **Works remotely** | ✅ Yes | ❌ No | ❌ No |
+| **Confirmation** | ❌ Immediate | ✅ Interactive | ✅ Manual |
+| **Rollback** | 🟡 Manual delete | ✅ Built-in | ✅ Full control |
+| **Speed** | ⚡ Fast | 🐢 Slower | 🐢 Slower |
+
+**Recommendation:** Use GitHub UI for quick releases, local script for development.
+
+---
 
 ## Release Workflow Details
 

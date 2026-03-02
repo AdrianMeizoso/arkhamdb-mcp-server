@@ -1,12 +1,19 @@
 # Quick Start: Creating Your First Release
 
-## 🚀 TL;DR - Create a Release in 30 Seconds
+## 🚀 TL;DR - Two Ways to Release
 
+### Option 1: GitHub UI (Easiest - No Local Setup)
+1. Go to **Actions** → **Manual Release**
+2. Click **Run workflow**
+3. Enter version: `1.0.1`
+4. Click **Run workflow**
+
+### Option 2: Local Script
 ```bash
 ./scripts/release.sh 1.0.1
 ```
 
-That's it! The script handles everything.
+Both options are fully automated! Choose based on your preference.
 
 ---
 
@@ -14,23 +21,29 @@ That's it! The script handles everything.
 
 Your repository now has:
 
-### 1. **Automated Release Workflow** (`.github/workflows/release.yml`)
+### 1. **Manual Release Workflow** (`.github/workflows/manual-release.yml`) ⭐
+   - Trigger releases from GitHub UI
+   - No local setup needed
+   - Works from anywhere (mobile, tablet, etc.)
+
+### 2. **Tag-based Release Workflow** (`.github/workflows/release.yml`)
    - Triggers when you push a version tag (e.g., `v1.0.1`)
    - Builds, tests, and creates a GitHub Release
    - Attaches the fat JAR automatically
 
-### 2. **CI Build Workflow** (`.github/workflows/build.yml`)
+### 3. **CI Build Workflow** (`.github/workflows/build.yml`)
    - Runs on every push to `main`/`develop`
    - Validates builds and tests
    - Creates snapshot artifacts
 
-### 3. **Release Script** (`scripts/release.sh`)
-   - Interactive helper script
+### 4. **Release Script** (`scripts/release.sh`)
+   - Interactive helper script for local releases
    - Handles versioning, tagging, and pushing
-   - Includes safety checks
+   - Includes safety checks and confirmations
 
-### 4. **Documentation**
-   - `RELEASING.md`: Detailed release guide
+### 5. **Documentation**
+   - `RELEASING.md`: Comprehensive release guide
+   - `.github/MANUAL_RELEASE_GUIDE.md`: GitHub UI instructions
    - `.github/RELEASE_TEMPLATE.md`: Release checklist
 
 ---
