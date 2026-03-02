@@ -179,22 +179,29 @@ IMPORTANT: Use Spanish terms for the 'query' parameter when searching PDF conten
 
             if (query != null) {
                 // Search campaign PDF
+                var campaignResultText = ""
                 if (campaignPdfText != null) {
+                    campaignResultText = PdfCache.search(campaignPdfText, query)
                     result.appendLine("## Campaign Guide — Search: \"$query\"")
                     result.appendLine()
-                    result.appendLine(PdfCache.search(campaignPdfText, query))
+                    result.appendLine(campaignResultText)
                     result.appendLine()
                 }
 
-                // Cross-reference with base rules
-                val baseRulesText = PdfCache.loadOrNull("arkham_horror_rules.pdf")
-                if (baseRulesText != null) {
-                    val baseResult = PdfCache.search(baseRulesText, query)
-                    if (!baseResult.startsWith("No results")) {
-                        result.appendLine("## Base Rules Cross-Reference — \"$query\"")
-                        result.appendLine()
-                        result.appendLine(baseResult)
-                        result.appendLine()
+                // Cross-reference base rules only when campaign results are sparse or missing
+                val campaignResultSparse = campaignResultText.isBlank() ||
+                    campaignResultText.startsWith("No results") ||
+                    campaignResultText.lines().size < 10
+                if (campaignResultSparse) {
+                    val baseRulesText = PdfCache.loadOrNull("arkham_horror_rules.pdf")
+                    if (baseRulesText != null) {
+                        val baseResult = PdfCache.search(baseRulesText, query)
+                        if (!baseResult.startsWith("No results")) {
+                            result.appendLine("## Base Rules Cross-Reference — \"$query\"")
+                            result.appendLine()
+                            result.appendLine(baseResult)
+                            result.appendLine()
+                        }
                     }
                 }
             } else if (campaignPdfText != null) {

@@ -64,33 +64,54 @@ object PdfCache {
      * Search for [query] in [text], returning matching lines with [contextWindow] lines of context.
      * Overlapping context windows are merged to avoid duplicate output.
      *
-     * Multi-term search: splits [query] by whitespace and first tries AND (all terms on same line).
-     * If no AND results are found, falls back to OR (any term on the line).
+     * Search strategy (in order of priority):
+     * 1. Exact phrase match (multi-word queries searched as a literal string)
+     * 2. AND match: all terms appear on the same line
+     * 3. OR fallback: any term appears on the line (capped at [maxSections] / 2)
+     *
+     * Results are capped at [maxSections] sections and [charBudget] characters to avoid
+     * overwhelming the LLM context. If truncated, a note is appended.
      */
-    fun search(text: String, query: String, contextWindow: Int = 5): String {
+    fun search(
+        text: String,
+        query: String,
+        contextWindow: Int = 5,
+        maxSections: Int = 20,
+        charBudget: Int = 12_000
+    ): String {
         val lines = text.lines()
-        val terms = query.lowercase().split("\\s+".toRegex()).filter { it.isNotBlank() }
+        val queryLower = query.lowercase().trim()
+        val terms = queryLower.split("\\s+".toRegex()).filter { it.isNotBlank() }
         val matchRanges = mutableListOf<IntRange>()
 
-        // AND pass: line must contain every term
-        lines.forEachIndexed { index, line ->
-            val lineLower = line.lowercase()
-            if (terms.all { lineLower.contains(it) }) {
-                val start = maxOf(0, index - contextWindow)
-                val end = minOf(lines.size - 1, index + contextWindow)
-                matchRanges.add(start..end)
+        fun addMatch(index: Int) {
+            val start = maxOf(0, index - contextWindow)
+            val end = minOf(lines.size - 1, index + contextWindow)
+            matchRanges.add(start..end)
+        }
+
+        // Pass 1: exact phrase (only meaningful for multi-word queries)
+        if (terms.size > 1) {
+            lines.forEachIndexed { index, line ->
+                if (line.lowercase().contains(queryLower)) addMatch(index)
             }
         }
 
-        // OR fallback: line must contain at least one term
+        // Pass 2: AND — all terms on the same line
         if (matchRanges.isEmpty()) {
             lines.forEachIndexed { index, line ->
                 val lineLower = line.lowercase()
-                if (terms.any { lineLower.contains(it) }) {
-                    val start = maxOf(0, index - contextWindow)
-                    val end = minOf(lines.size - 1, index + contextWindow)
-                    matchRanges.add(start..end)
-                }
+                if (terms.all { lineLower.contains(it) }) addMatch(index)
+            }
+        }
+
+        // Pass 3: OR fallback — any term on the line, capped early to avoid explosion
+        if (matchRanges.isEmpty()) {
+            val orCap = maxSections / 2
+            lines.forEachIndexed { index, line ->
+                if (matchRanges.size >= orCap) return@forEachIndexed
+                val lineLower = line.lowercase()
+                if (terms.any { lineLower.contains(it) }) addMatch(index)
             }
         }
 
@@ -109,13 +130,34 @@ object PdfCache {
             }
         }
 
+        // Cap sections
+        val truncatedSections = merged.size > maxSections
+        val sectionsToRender = if (truncatedSections) merged.take(maxSections) else merged
+
         val resultLines = mutableListOf<String>()
-        merged.forEach { range ->
-            resultLines.add("--- Lines ${range.first + 1}–${range.last + 1} ---")
-            resultLines.addAll(lines.subList(range.first, range.last + 1))
-            resultLines.add("")
+        var charCount = 0
+        var truncatedChars = false
+
+        for (range in sectionsToRender) {
+            val header = "--- Lines ${range.first + 1}–${range.last + 1} ---"
+            val block = lines.subList(range.first, range.last + 1).joinToString("\n")
+            val chunk = "$header\n$block\n\n"
+            if (charCount + chunk.length > charBudget) {
+                truncatedChars = true
+                break
+            }
+            resultLines.add(chunk)
+            charCount += chunk.length
         }
 
-        return resultLines.joinToString("\n")
+        if (truncatedSections || truncatedChars) {
+            val shown = resultLines.size
+            val total = merged.size
+            resultLines.add(
+                "_Mostrando $shown de $total secciones. Refina la búsqueda con términos más específicos para ver más._"
+            )
+        }
+
+        return resultLines.joinToString("")
     }
 }

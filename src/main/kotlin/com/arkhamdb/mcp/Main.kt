@@ -8,6 +8,7 @@ import com.arkhamdb.mcp.tools.registerCardTools
 import com.arkhamdb.mcp.tools.registerDecklistTools
 import com.arkhamdb.mcp.tools.registerPackTools
 import com.arkhamdb.mcp.tools.registerPdfTools
+import com.arkhamdb.mcp.tools.registerSearchAllPdfsTools
 import io.modelcontextprotocol.kotlin.sdk.Implementation
 import io.modelcontextprotocol.kotlin.sdk.ServerCapabilities
 import io.modelcontextprotocol.kotlin.sdk.server.Server
@@ -52,6 +53,7 @@ fun main(): Unit = runBlocking {
         registerPackTools(server, arkhamClient)
         registerDecklistTools(server, arkhamClient)
         registerPdfTools(server)
+        registerSearchAllPdfsTools(server)
         registerCardFaqTools(server, arkhamClient)
         registerCampaignRulesTools(server, arkhamClient)
 
