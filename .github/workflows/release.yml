@@ -1,0 +1,118 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'  # Triggers on version tags like v1.0.0, v1.2.3, etc.
+
+permissions:
+  contents: write  # Required for creating releases
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Fetch all history for changelog generation
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+          cache: 'gradle'
+
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
+
+      - name: Extract version from tag
+        id: version
+        run: |
+          VERSION=${GITHUB_REF#refs/tags/v}
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "tag=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+
+      - name: Update version in build.gradle.kts
+        run: |
+          sed -i 's/version = ".*"/version = "${{ steps.version.outputs.version }}"/' build.gradle.kts
+
+      - name: Run tests
+        run: ./gradlew test
+
+      - name: Build fat JAR
+        run: ./gradlew shadowJar
+
+      - name: Verify JAR exists
+        run: |
+          ls -lh build/libs/
+          JAR_FILE=$(find build/libs -name "*-all.jar" -type f)
+          echo "jar_file=$JAR_FILE" >> $GITHUB_ENV
+          echo "jar_name=$(basename $JAR_FILE)" >> $GITHUB_ENV
+
+      - name: Generate release notes
+        id: release_notes
+        run: |
+          # Get the previous tag
+          PREV_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
+
+          # Generate changelog
+          if [ -z "$PREV_TAG" ]; then
+            CHANGELOG=$(git log --pretty=format:"- %s (%h)" --no-merges)
+          else
+            CHANGELOG=$(git log ${PREV_TAG}..HEAD --pretty=format:"- %s (%h)" --no-merges)
+          fi
+
+          # Create release notes
+          cat > release_notes.md << EOF
+          ## ArkhamDB MCP Server ${{ steps.version.outputs.tag }}
+
+          ### Installation
+
+          Download the JAR file below and configure it in your Claude Desktop:
+
+          \`\`\`json
+          {
+            "mcpServers": {
+              "arkhamdb": {
+                "command": "java",
+                "args": ["-jar", "/path/to/${{ env.jar_name }}"]
+              }
+            }
+          }
+          \`\`\`
+
+          ### Requirements
+          - Java 21 or higher
+
+          ### Changes
+          $CHANGELOG
+
+          ### Resources
+          - [Installation Guide](https://github.com/${{ github.repository }}#installation)
+          - [ArkhamDB API](https://arkhamdb.com/api/)
+          - [Model Context Protocol](https://modelcontextprotocol.io/)
+          EOF
+
+          cat release_notes.md
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: Release ${{ steps.version.outputs.tag }}
+          body_path: release_notes.md
+          files: ${{ env.jar_file }}
+          draft: false
+          prerelease: false
+          generate_release_notes: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: arkhamdb-mcp-server-${{ steps.version.outputs.version }}
+          path: build/libs/*-all.jar
+          retention-days: 30
