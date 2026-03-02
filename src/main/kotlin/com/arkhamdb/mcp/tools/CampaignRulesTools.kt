@@ -89,6 +89,13 @@ private val CAMPAIGNS = listOf(
         aliases = listOf("hemlock vale", "feast of hemlock vale", "hemlock"),
         pdfFileName = "campaign_fhv_guide.pdf",
         packCodes = listOf("fhv")
+    ),
+    CampaignInfo(
+        code = "tdc",
+        name = "The Drowned City",
+        aliases = listOf("drowned city", "ciudad sumergida", "la ciudad sumergida"),
+        pdfFileName = "campaign_tdc_guide.pdf",
+        packCodes = listOf("tdcp", "tdcc")
     )
 )
 
@@ -116,7 +123,7 @@ Use this tool when the user asks about:
 - Listing encounter cards (enemies, treacheries, locations) for a campaign
 Supported campaigns: core (Night of the Zealot), dwl (Dunwich Legacy), ptc (Path to Carcosa),
 tfa (Forgotten Age), tcu (Circle Undone), tde (Dream-Eaters), tic (Innsmouth Conspiracy),
-eoe (Edge of the Earth), tsk (Scarlet Keys), fhv (Feast of Hemlock Vale).
+eoe (Edge of the Earth), tsk (Scarlet Keys), fhv (Feast of Hemlock Vale), tdc (The Drowned City).
 IMPORTANT: Use Spanish terms for the 'query' parameter when searching PDF content.""",
         inputSchema = ToolSchema(
             properties = buildJsonObject {

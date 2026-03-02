@@ -21,7 +21,7 @@ Place the following PDF files in this directory:
 Campaign guide PDFs enable the `get_campaign_rules` tool. Use the exact filenames below:
 
 | Filename | Campaign |
-|----------|----------|
+|----------------------------|----------------------------------------------|
 | `campaign_core_guide.pdf` | Night of the Zealot (core) |
 | `campaign_dwl_guide.pdf` | The Dunwich Legacy (dwl) |
 | `campaign_ptc_guide.pdf` | The Path to Carcosa (ptc) |
@@ -32,6 +32,7 @@ Campaign guide PDFs enable the `get_campaign_rules` tool. Use the exact filename
 | `campaign_eoe_guide.pdf` | Edge of the Earth (eoe) |
 | `campaign_tsk_guide.pdf` | The Scarlet Keys (tsk) |
 | `campaign_fhv_guide.pdf` | The Feast of Hemlock Vale (fhv) |
+| `campaign_tdc_guide.pdf` | The Drowned City / La ciudad sumergida (tdc) |
 
 Campaign PDFs are **optional** — if a PDF is missing, the tool will still return encounter card data from the API and inform the user of the expected filename.
 
