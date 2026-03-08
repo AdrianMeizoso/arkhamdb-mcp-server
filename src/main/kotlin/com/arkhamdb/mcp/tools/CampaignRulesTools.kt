@@ -1,11 +1,10 @@
 package com.arkhamdb.mcp.tools
 
 import com.arkhamdb.mcp.ArkhamDbClient
-import io.modelcontextprotocol.kotlin.sdk.CallToolResult
 import io.modelcontextprotocol.kotlin.sdk.server.Server
+import io.modelcontextprotocol.kotlin.sdk.types.CallToolResult
 import io.modelcontextprotocol.kotlin.sdk.types.TextContent
 import io.modelcontextprotocol.kotlin.sdk.types.ToolSchema
-import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.*
 import org.slf4j.LoggerFactory
 
@@ -143,151 +142,146 @@ IMPORTANT: Use Spanish terms for the 'query' parameter when searching PDF conten
             required = listOf("campaign")
         )
     ) { request ->
-        runBlocking {
-            val arguments = request.params.arguments ?: JsonObject(emptyMap())
-            val campaignInput = arguments["campaign"]?.jsonPrimitive?.contentOrNull
-            val query = arguments["query"]?.jsonPrimitive?.contentOrNull
-            val includeEncounterCards = arguments["include_encounter_cards"]?.jsonPrimitive?.booleanOrNull ?: false
+        val arguments = request.params.arguments
+        val campaignInput = arguments.string("campaign")
+        val query = arguments.string("query")
+        val includeEncounterCards = arguments.boolean("include_encounter_cards")
 
-            if (campaignInput == null) {
-                return@runBlocking CallToolResult(
-                    content = listOf(TextContent(text = "Error: 'campaign' parameter is required.\n\nAvailable campaigns:\n${availableCampaignsList()}")),
-                    isError = true
+        if (campaignInput == null) {
+            return@addTool CallToolResult(
+                content = listOf(TextContent(text = "Error: 'campaign' parameter is required.\n\nAvailable campaigns:\n${availableCampaignsList()}")),
+                isError = true
+            )
+        }
+
+        logger.info("get_campaign_rules — campaign: $campaignInput, query: $query, encounter: $includeEncounterCards")
+
+        val campaignInfo = resolveCampaign(campaignInput) ?: return@addTool CallToolResult(
+            content = listOf(
+                TextContent(
+                    text = "Unknown campaign: '$campaignInput'.\n\nAvailable campaigns:\n${availableCampaignsList()}"
                 )
-            }
+            ),
+            isError = true
+        )
 
-            logger.info("get_campaign_rules — campaign: $campaignInput, query: $query, encounter: $includeEncounterCards")
+        val result = StringBuilder()
+        result.appendLine("# ${campaignInfo.name} — Campaign Rules")
+        result.appendLine("**Code:** `${campaignInfo.code}` | **Packs:** ${campaignInfo.packCodes.joinToString(", ")}")
+        result.appendLine()
 
-            val campaignInfo = resolveCampaign(campaignInput)
-            if (campaignInfo == null) {
-                return@runBlocking CallToolResult(
-                    content = listOf(
-                        TextContent(
-                            text = "Unknown campaign: '$campaignInput'.\n\nAvailable campaigns:\n${availableCampaignsList()}"
-                        )
-                    ),
-                    isError = true
-                )
-            }
-
-            val result = StringBuilder()
-            result.appendLine("# ${campaignInfo.name} — Campaign Rules")
-            result.appendLine("**Code:** `${campaignInfo.code}` | **Packs:** ${campaignInfo.packCodes.joinToString(", ")}")
+        // Load campaign PDF
+        val campaignPdfText = PdfCache.loadOrNull(campaignInfo.pdfFileName)
+        if (campaignPdfText == null) {
+            result.appendLine(
+                "_Campaign guide PDF not found. Expected: `${campaignInfo.pdfFileName}` in `src/main/resources/pdfs/`_"
+            )
             result.appendLine()
+        }
 
-            // Load campaign PDF
-            val campaignPdfText = PdfCache.loadOrNull(campaignInfo.pdfFileName)
-            if (campaignPdfText == null) {
-                result.appendLine(
-                    "_Campaign guide PDF not found. Expected: `${campaignInfo.pdfFileName}` in `src/main/resources/pdfs/`_"
-                )
-                result.appendLine()
-            }
-
-            if (query != null) {
-                // Source chain: campaign PDF first; fall back to base rules PDF if insufficient
-                val rulings = SourceChain.primaryOrContrast(
-                    primary = SourceChain.Source("Campaign PDF") {
-                        if (campaignPdfText == null) {
+        if (query != null) {
+            // Source chain: campaign PDF first; fall back to base rules PDF if insufficient
+            val rulings = SourceChain.primaryOrContrast(
+                primary = SourceChain.Source("Campaign PDF") {
+                    if (campaignPdfText == null) {
+                        null
+                    } else {
+                        val searchResult = PdfCache.search(campaignPdfText, query)
+                        if (searchResult.isBlank() || searchResult.startsWith("No results")) {
                             null
                         } else {
-                            val searchResult = PdfCache.search(campaignPdfText, query)
-                            if (searchResult.isBlank() || searchResult.startsWith("No results")) {
+                            buildString {
+                                appendLine("## Campaign Guide — Search: \"$query\"")
+                                appendLine()
+                                appendLine(searchResult)
+                            }
+                        }
+                    }
+                },
+                fallbacks = listOf(
+                    SourceChain.Source("Base Rules PDF") {
+                        val baseRulesText = PdfCache.loadOrNull("arkham_horror_rules.pdf")
+                        if (baseRulesText == null) {
+                            null
+                        } else {
+                            val searchResult = PdfCache.search(baseRulesText, query)
+                            if (searchResult.startsWith("No results")) {
                                 null
                             } else {
                                 buildString {
-                                    appendLine("## Campaign Guide — Search: \"$query\"")
+                                    appendLine("## Base Rules Cross-Reference — \"$query\"")
                                     appendLine()
                                     appendLine(searchResult)
                                 }
                             }
                         }
-                    },
-                    fallbacks = listOf(
-                        SourceChain.Source("Base Rules PDF") {
-                            val baseRulesText = PdfCache.loadOrNull("arkham_horror_rules.pdf")
-                            if (baseRulesText == null) {
-                                null
-                            } else {
-                                val searchResult = PdfCache.search(baseRulesText, query)
-                                if (searchResult.startsWith("No results")) {
-                                    null
-                                } else {
-                                    buildString {
-                                        appendLine("## Base Rules Cross-Reference — \"$query\"")
-                                        appendLine()
-                                        appendLine(searchResult)
-                                    }
-                                }
-                            }
-                        }
-                    )
+                    }
                 )
-                if (rulings != null) {
-                    result.appendLine(rulings)
-                    result.appendLine()
-                }
-            } else if (campaignPdfText != null) {
-                // No query — return the first 100 lines (table of contents / index area)
-                val headerLines = campaignPdfText.lines().take(100)
-                result.appendLine("## Campaign Guide (índice)")
+            )
+            if (rulings != null) {
+                result.appendLine(rulings)
                 result.appendLine()
-                result.appendLine(headerLines.joinToString("\n"))
-                result.appendLine()
-                result.appendLine("_Mostrando las primeras 100 líneas. Para buscar contenido específico usa el parámetro `query`._")
             }
-
-            // Encounter cards
-            if (includeEncounterCards) {
-                result.appendLine("## Encounter Cards")
-                result.appendLine()
-                client.getAllCardsWithEncounter()
-                    .onSuccess { cards ->
-                        val campaignCards = cards.filter { card ->
-                            campaignInfo.packCodes.any { it.equals(card.pack_code, ignoreCase = true) }
-                        }
-
-                        if (campaignCards.isEmpty()) {
-                            result.appendLine("_No encounter cards found for packs: ${campaignInfo.packCodes.joinToString(", ")}_")
-                        } else {
-                            val grouped = campaignCards.groupBy { it.type_code }
-                            val typeOrder = listOf("enemy", "treachery", "location", "agenda", "act")
-
-                            for (typeCode in typeOrder) {
-                                val typeCards = grouped[typeCode] ?: continue
-                                val typeName = typeCards.first().type_name ?: typeCode
-                                result.appendLine("### $typeName (${typeCards.size})")
-                                typeCards
-                                    .sortedWith(compareBy({ it.pack_code }, { it.position ?: Int.MAX_VALUE }))
-                                    .forEach { card ->
-                                        val traits = if (!card.traits.isNullOrBlank()) " — ${card.traits}" else ""
-                                        result.appendLine("- **${card.name}** [${card.pack_code}]$traits")
-                                    }
-                                result.appendLine()
-                            }
-
-                            // Any remaining types
-                            val otherTypes = grouped.keys.filter { it !in typeOrder }
-                            for (typeCode in otherTypes) {
-                                val typeCards = grouped[typeCode] ?: continue
-                                val typeName = typeCards.first().type_name ?: typeCode
-                                result.appendLine("### $typeName (${typeCards.size})")
-                                typeCards
-                                    .sortedWith(compareBy({ it.pack_code }, { it.position ?: Int.MAX_VALUE }))
-                                    .forEach { card ->
-                                        result.appendLine("- **${card.name}** [${card.pack_code}]")
-                                    }
-                                result.appendLine()
-                            }
-                        }
-                    }
-                    .onFailure { error ->
-                        logger.error("Error fetching encounter cards for campaign ${campaignInfo.code}", error)
-                        result.appendLine("_Error fetching encounter cards: ${error.message}_")
-                    }
-            }
-
-            CallToolResult(content = listOf(TextContent(text = result.toString())))
+        } else if (campaignPdfText != null) {
+            // No query — return the first 100 lines (table of contents / index area)
+            val headerLines = campaignPdfText.lines().take(100)
+            result.appendLine("## Campaign Guide (índice)")
+            result.appendLine()
+            result.appendLine(headerLines.joinToString("\n"))
+            result.appendLine()
+            result.appendLine("_Mostrando las primeras 100 líneas. Para buscar contenido específico usa el parámetro `query`._")
         }
+
+        // Encounter cards
+        if (includeEncounterCards) {
+            result.appendLine("## Encounter Cards")
+            result.appendLine()
+            client.getAllCardsWithEncounter()
+                .onSuccess { cards ->
+                    val campaignCards = cards.filter { card ->
+                        campaignInfo.packCodes.any { it.equals(card.pack_code, ignoreCase = true) }
+                    }
+
+                    if (campaignCards.isEmpty()) {
+                        result.appendLine("_No encounter cards found for packs: ${campaignInfo.packCodes.joinToString(", ")}_")
+                    } else {
+                        val grouped = campaignCards.groupBy { it.type_code }
+                        val typeOrder = listOf("enemy", "treachery", "location", "agenda", "act")
+
+                        for (typeCode in typeOrder) {
+                            val typeCards = grouped[typeCode] ?: continue
+                            val typeName = typeCards.first().type_name
+                            result.appendLine("### $typeName (${typeCards.size})")
+                            typeCards
+                                .sortedWith(compareBy({ it.pack_code }, { it.position ?: Int.MAX_VALUE }))
+                                .forEach { card ->
+                                    val traits = if (!card.traits.isNullOrBlank()) " — ${card.traits}" else ""
+                                    result.appendLine("- **${card.name}** [${card.pack_code}]$traits")
+                                }
+                            result.appendLine()
+                        }
+
+                        // Any remaining types
+                        val otherTypes = grouped.keys.filter { it !in typeOrder }
+                        for (typeCode in otherTypes) {
+                            val typeCards = grouped[typeCode] ?: continue
+                            val typeName = typeCards.first().type_name
+                            result.appendLine("### $typeName (${typeCards.size})")
+                            typeCards
+                                .sortedWith(compareBy({ it.pack_code }, { it.position ?: Int.MAX_VALUE }))
+                                .forEach { card ->
+                                    result.appendLine("- **${card.name}** [${card.pack_code}]")
+                                }
+                            result.appendLine()
+                        }
+                    }
+                }
+                .onFailure { error ->
+                    logger.error("Error fetching encounter cards for campaign ${campaignInfo.code}", error)
+                    result.appendLine("_Error fetching encounter cards: ${error.message}_")
+                }
+        }
+
+        CallToolResult(content = listOf(TextContent(text = result.toString())))
     }
 }

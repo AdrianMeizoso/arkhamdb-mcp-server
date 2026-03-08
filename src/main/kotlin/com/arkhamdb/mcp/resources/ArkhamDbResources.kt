@@ -4,7 +4,6 @@ import com.arkhamdb.mcp.ArkhamDbClient
 import io.modelcontextprotocol.kotlin.sdk.server.Server
 import io.modelcontextprotocol.kotlin.sdk.types.ReadResourceResult
 import io.modelcontextprotocol.kotlin.sdk.types.TextResourceContents
-import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.Json
 import org.slf4j.LoggerFactory
 
@@ -18,39 +17,37 @@ fun registerResources(server: Server, client: ArkhamDbClient) {
         description = "Complete card database for Arkham Horror LCG",
         mimeType = "application/json"
     ) { request ->
-        runBlocking {
-            logger.info("Reading all cards resource")
+        logger.info("Reading all cards resource")
 
-            client.getAllCards()
-                .map { cards ->
-                    ReadResourceResult(
-                        contents = listOf(
-                            TextResourceContents(
-                                text = Json.encodeToString(
-                                    kotlinx.serialization.builtins.ListSerializer(
-                                        com.arkhamdb.mcp.models.Card.serializer()
-                                    ),
-                                    cards
+        client.getAllCards()
+            .map { cards ->
+                ReadResourceResult(
+                    contents = listOf(
+                        TextResourceContents(
+                            text = Json.encodeToString(
+                                kotlinx.serialization.builtins.ListSerializer(
+                                    com.arkhamdb.mcp.models.Card.serializer()
                                 ),
-                                uri = request.uri,
-                                mimeType = "application/json"
-                            )
+                                cards
+                            ),
+                            uri = request.uri,
+                            mimeType = "application/json"
                         )
                     )
-                }
-                .getOrElse { error ->
-                    logger.error("Error reading cards resource", error)
-                    ReadResourceResult(
-                        contents = listOf(
-                            TextResourceContents(
-                                text = "Error reading cards: ${error.message}",
-                                uri = request.uri,
-                                mimeType = "text/plain"
-                            )
+                )
+            }
+            .getOrElse { error ->
+                logger.error("Error reading cards resource", error)
+                ReadResourceResult(
+                    contents = listOf(
+                        TextResourceContents(
+                            text = "Error reading cards: ${error.message}",
+                            uri = request.uri,
+                            mimeType = "text/plain"
                         )
                     )
-                }
-        }
+                )
+            }
     }
 
     // Resource: arkhamdb://packs - All packs
@@ -60,38 +57,36 @@ fun registerResources(server: Server, client: ArkhamDbClient) {
         description = "List of all card packs and expansions",
         mimeType = "application/json"
     ) { request ->
-        runBlocking {
-            logger.info("Reading all packs resource")
+        logger.info("Reading all packs resource")
 
-            client.getAllPacks()
-                .map { packs ->
-                    ReadResourceResult(
-                        contents = listOf(
-                            TextResourceContents(
-                                text = Json.encodeToString(
-                                    kotlinx.serialization.builtins.ListSerializer(
-                                        com.arkhamdb.mcp.models.Pack.serializer()
-                                    ),
-                                    packs
+        client.getAllPacks()
+            .map { packs ->
+                ReadResourceResult(
+                    contents = listOf(
+                        TextResourceContents(
+                            text = Json.encodeToString(
+                                kotlinx.serialization.builtins.ListSerializer(
+                                    com.arkhamdb.mcp.models.Pack.serializer()
                                 ),
-                                uri = request.uri,
-                                mimeType = "application/json"
-                            )
+                                packs
+                            ),
+                            uri = request.uri,
+                            mimeType = "application/json"
                         )
                     )
-                }
-                .getOrElse { error ->
-                    logger.error("Error reading packs resource", error)
-                    ReadResourceResult(
-                        contents = listOf(
-                            TextResourceContents(
-                                text = "Error reading packs: ${error.message}",
-                                uri = request.uri,
-                                mimeType = "text/plain"
-                            )
+                )
+            }
+            .getOrElse { error ->
+                logger.error("Error reading packs resource", error)
+                ReadResourceResult(
+                    contents = listOf(
+                        TextResourceContents(
+                            text = "Error reading packs: ${error.message}",
+                            uri = request.uri,
+                            mimeType = "text/plain"
                         )
                     )
-                }
-        }
+                )
+            }
     }
 }

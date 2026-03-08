@@ -1,0 +1,44 @@
+style:
+  MaxLineLength:
+    maxLineLength: 200
+  MagicNumber:
+    active: false
+  WildcardImport:
+    active: false
+  UseCheckOrError:
+    active: false
+  ReturnCount:
+    active: false
+
+exceptions:
+  TooGenericExceptionCaught:
+    active: false
+
+naming:
+  NoNameShadowing:
+    active: true
+  # snake_case field names are required to match ArkhamDB JSON API keys
+  ConstructorParameterNaming:
+    active: false
+  FunctionNaming:
+    active: false
+  VariableNaming:
+    active: false
+  MemberNameEqualsClassName:
+    active: false
+
+complexity:
+  LongMethod:
+    active: false
+  CyclomaticComplexMethod:
+    threshold: 30
+
+# Disable ktlint formatting enforcement
+formatting:
+  active: false
+
+coroutines:
+  RedundantSuspendModifier:
+    active: true
+  SuspendFunSwallowedCancellation:
+    active: true

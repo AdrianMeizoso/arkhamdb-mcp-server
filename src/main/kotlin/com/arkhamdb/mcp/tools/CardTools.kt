@@ -1,11 +1,10 @@
 package com.arkhamdb.mcp.tools
 
 import com.arkhamdb.mcp.ArkhamDbClient
-import io.modelcontextprotocol.kotlin.sdk.CallToolResult
 import io.modelcontextprotocol.kotlin.sdk.server.Server
+import io.modelcontextprotocol.kotlin.sdk.types.CallToolResult
 import io.modelcontextprotocol.kotlin.sdk.types.TextContent
 import io.modelcontextprotocol.kotlin.sdk.types.ToolSchema
-import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.*
 import org.slf4j.LoggerFactory
 
@@ -50,77 +49,75 @@ IMPORTANT: Card data is in Spanish. Use Spanish terms for searches:
             }
         )
     ) { request ->
-        runBlocking {
-            val arguments = request.params.arguments ?: JsonObject(emptyMap())
-            val nameFilter = arguments["name"]?.jsonPrimitive?.contentOrNull
-            val factionFilter = arguments["faction"]?.jsonPrimitive?.contentOrNull
-            val typeFilter = arguments["type"]?.jsonPrimitive?.contentOrNull
-            val traitsFilter = arguments["traits"]?.jsonPrimitive?.contentOrNull
-            val packFilter = arguments["pack_code"]?.jsonPrimitive?.contentOrNull
-            val includeEncounter = arguments["include_encounter"]?.jsonPrimitive?.booleanOrNull ?: false
+        val arguments = request.params.arguments
+        val nameFilter = arguments.string("name")
+        val factionFilter = arguments.string("faction")
+        val typeFilter = arguments.string("type")
+        val traitsFilter = arguments.string("traits")
+        val packFilter = arguments.string("pack_code")
+        val includeEncounter = arguments.boolean("include_encounter")
 
-            logger.info("Searching cards - name: $nameFilter, faction: $factionFilter, type: $typeFilter, traits: $traitsFilter, pack: $packFilter, encounter: $includeEncounter")
+        logger.info("Searching cards - name: $nameFilter, faction: $factionFilter, type: $typeFilter, traits: $traitsFilter, pack: $packFilter, encounter: $includeEncounter")
 
-            val cardsResult = if (includeEncounter) client.getAllCardsWithEncounter() else client.getAllCards()
+        val cardsResult = if (includeEncounter) client.getAllCardsWithEncounter() else client.getAllCards()
 
-            cardsResult
-                .map { cards ->
-                    var filtered = cards
+        cardsResult
+            .map { cards ->
+                var filtered = cards
 
-                    nameFilter?.let { name ->
-                        filtered = filtered.filter { card ->
-                            card.name.contains(name, ignoreCase = true) ||
-                                    card.real_name?.contains(name, ignoreCase = true) == true
-                        }
+                nameFilter?.let { name ->
+                    filtered = filtered.filter { card ->
+                        card.name.contains(name, ignoreCase = true) ||
+                                card.real_name?.contains(name, ignoreCase = true) == true
                     }
+                }
 
-                    factionFilter?.let { faction ->
-                        filtered = filtered.filter { card ->
-                            card.faction_code.equals(faction, ignoreCase = true)
-                        }
+                factionFilter?.let { faction ->
+                    filtered = filtered.filter { card ->
+                        card.faction_code.equals(faction, ignoreCase = true)
                     }
+                }
 
-                    typeFilter?.let { type ->
-                        filtered = filtered.filter { card ->
-                            card.type_code.equals(type, ignoreCase = true)
-                        }
+                typeFilter?.let { type ->
+                    filtered = filtered.filter { card ->
+                        card.type_code.equals(type, ignoreCase = true)
                     }
+                }
 
-                    traitsFilter?.let { traits ->
-                        filtered = filtered.filter { card ->
-                            card.traits?.contains(traits, ignoreCase = true) == true
-                        }
+                traitsFilter?.let { traits ->
+                    filtered = filtered.filter { card ->
+                        card.traits?.contains(traits, ignoreCase = true) == true
                     }
+                }
 
-                    packFilter?.let { pack ->
-                        filtered = filtered.filter { card ->
-                            card.pack_code.equals(pack, ignoreCase = true)
-                        }
+                packFilter?.let { pack ->
+                    filtered = filtered.filter { card ->
+                        card.pack_code.equals(pack, ignoreCase = true)
                     }
+                }
 
-                    logger.info("Found ${filtered.size} cards matching filters")
+                logger.info("Found ${filtered.size} cards matching filters")
 
-                    CallToolResult(
-                        content = listOf(
-                            TextContent(
-                                text = Json.encodeToString(
-                                    kotlinx.serialization.builtins.ListSerializer(
-                                        com.arkhamdb.mcp.models.Card.serializer()
-                                    ),
-                                    filtered
-                                )
+                CallToolResult(
+                    content = listOf(
+                        TextContent(
+                            text = Json.encodeToString(
+                                kotlinx.serialization.builtins.ListSerializer(
+                                    com.arkhamdb.mcp.models.Card.serializer()
+                                ),
+                                filtered
                             )
                         )
                     )
-                }
-                .getOrElse { error ->
-                    logger.error("Error searching cards", error)
-                    CallToolResult(
-                        content = listOf(TextContent(text = "Error searching cards: ${error.message}")),
-                        isError = true
-                    )
-                }
-        }
+                )
+            }
+            .getOrElse { error ->
+                logger.error("Error searching cards", error)
+                CallToolResult(
+                    content = listOf(TextContent(text = "Error searching cards: ${error.message}")),
+                    isError = true
+                )
+            }
     }
 
     // Tool: get_card
@@ -137,37 +134,34 @@ IMPORTANT: Card data is in Spanish. Use Spanish terms for searches:
             required = listOf("code")
         )
     ) { request ->
-        runBlocking {
-            val arguments = request.params.arguments ?: JsonObject(emptyMap())
-            val code = arguments["code"]?.jsonPrimitive?.contentOrNull
+        val code = request.params.arguments.string("code")
 
-            if (code == null) {
-                return@runBlocking CallToolResult(
-                    content = listOf(TextContent(text = "Error: 'code' parameter is required")),
+        if (code == null) {
+            return@addTool CallToolResult(
+                content = listOf(TextContent(text = "Error: 'code' parameter is required")),
+                isError = true
+            )
+        }
+
+        logger.info("Getting card with code: $code")
+
+        client.getCard(code)
+            .map { card ->
+                CallToolResult(
+                    content = listOf(
+                        TextContent(
+                            text = Json.encodeToString(com.arkhamdb.mcp.models.Card.serializer(), card)
+                        )
+                    )
+                )
+            }
+            .getOrElse { error ->
+                logger.error("Error getting card $code", error)
+                CallToolResult(
+                    content = listOf(TextContent(text = "Card not found: $code. Error: ${error.message}")),
                     isError = true
                 )
             }
-
-            logger.info("Getting card with code: $code")
-
-            client.getCard(code)
-                .map { card ->
-                    CallToolResult(
-                        content = listOf(
-                            TextContent(
-                                text = Json.encodeToString(com.arkhamdb.mcp.models.Card.serializer(), card)
-                            )
-                        )
-                    )
-                }
-                .getOrElse { error ->
-                    logger.error("Error getting card $code", error)
-                    CallToolResult(
-                        content = listOf(TextContent(text = "Card not found: $code. Error: ${error.message}")),
-                        isError = true
-                    )
-                }
-        }
     }
 
     // Tool: get_cards_by_pack
@@ -193,56 +187,54 @@ Card data is in Spanish.""",
             required = listOf("pack_code")
         )
     ) { request ->
-        runBlocking {
-            val arguments = request.params.arguments ?: JsonObject(emptyMap())
-            val packCode = arguments["pack_code"]?.jsonPrimitive?.contentOrNull
-            val typeCode = arguments["type_code"]?.jsonPrimitive?.contentOrNull
+        val arguments = request.params.arguments
+        val packCode = arguments.string("pack_code")
+        val typeCode = arguments.string("type_code")
 
-            if (packCode == null) {
-                return@runBlocking CallToolResult(
-                    content = listOf(TextContent(text = "Error: 'pack_code' parameter is required")),
-                    isError = true
-                )
-            }
+        if (packCode == null) {
+            return@addTool CallToolResult(
+                content = listOf(TextContent(text = "Error: 'pack_code' parameter is required")),
+                isError = true
+            )
+        }
 
-            logger.info("Getting cards for pack: $packCode, type: $typeCode")
+        logger.info("Getting cards for pack: $packCode, type: $typeCode")
 
-            client.getAllCardsWithEncounter()
-                .map { cards ->
-                    var filtered = cards.filter { card ->
-                        card.pack_code.equals(packCode, ignoreCase = true)
+        client.getAllCardsWithEncounter()
+            .map { cards ->
+                var filtered = cards.filter { card ->
+                    card.pack_code.equals(packCode, ignoreCase = true)
+                }
+
+                typeCode?.let { type ->
+                    filtered = filtered.filter { card ->
+                        card.type_code.equals(type, ignoreCase = true)
                     }
+                }
 
-                    typeCode?.let { type ->
-                        filtered = filtered.filter { card ->
-                            card.type_code.equals(type, ignoreCase = true)
-                        }
-                    }
+                filtered = filtered.sortedBy { it.position ?: Int.MAX_VALUE }
 
-                    filtered = filtered.sortedBy { it.position ?: Int.MAX_VALUE }
+                logger.info("Found ${filtered.size} cards for pack $packCode")
 
-                    logger.info("Found ${filtered.size} cards for pack $packCode")
-
-                    CallToolResult(
-                        content = listOf(
-                            TextContent(
-                                text = Json.encodeToString(
-                                    kotlinx.serialization.builtins.ListSerializer(
-                                        com.arkhamdb.mcp.models.Card.serializer()
-                                    ),
-                                    filtered
-                                )
+                CallToolResult(
+                    content = listOf(
+                        TextContent(
+                            text = Json.encodeToString(
+                                kotlinx.serialization.builtins.ListSerializer(
+                                    com.arkhamdb.mcp.models.Card.serializer()
+                                ),
+                                filtered
                             )
                         )
                     )
-                }
-                .getOrElse { error ->
-                    logger.error("Error getting cards for pack $packCode", error)
-                    CallToolResult(
-                        content = listOf(TextContent(text = "Error getting cards for pack $packCode: ${error.message}")),
-                        isError = true
-                    )
-                }
-        }
+                )
+            }
+            .getOrElse { error ->
+                logger.error("Error getting cards for pack $packCode", error)
+                CallToolResult(
+                    content = listOf(TextContent(text = "Error getting cards for pack $packCode: ${error.message}")),
+                    isError = true
+                )
+            }
     }
 }

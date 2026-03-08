@@ -2,6 +2,7 @@ plugins {
     kotlin("jvm") version "2.1.0"
     kotlin("plugin.serialization") version "2.1.0"
     id("io.github.goooler.shadow") version "8.1.8"
+    id("io.gitlab.arturbosch.detekt") version "1.23.7"
     application
 }
 
@@ -32,7 +33,7 @@ dependencies {
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.9.0")
 
     // Logging
-    implementation("ch.qos.logback:logback-classic:1.5.13")
+    implementation("ch.qos.logback:logback-classic:1.5.32")
     implementation("org.slf4j:slf4j-api:2.0.16")
 
     // PDF parsing
@@ -40,6 +41,11 @@ dependencies {
 
     // Testing
     testImplementation(kotlin("test"))
+    testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.9.0")
+    testImplementation("io.ktor:ktor-client-mock:3.1.1")
+
+    // Detekt
+    detektPlugins("io.gitlab.arturbosch.detekt:detekt-formatting:1.23.7")
 }
 
 kotlin {
@@ -60,4 +66,30 @@ tasks.shadowJar {
     manifest {
         attributes["Main-Class"] = "com.arkhamdb.mcp.MainKt"
     }
+}
+
+val generateBuildConstants by tasks.registering {
+    val outputDir = layout.buildDirectory.dir("generated/buildConstants")
+    outputs.dir(outputDir)
+    doLast {
+        val dir = outputDir.get().asFile
+        dir.mkdirs()
+        File(dir, "BuildConstants.kt").writeText(
+            """
+            package com.arkhamdb.mcp
+            object BuildConstants { const val VERSION = "${project.version}" }
+            """.trimIndent()
+        )
+    }
+}
+
+kotlin.sourceSets["main"].kotlin.srcDir(
+    tasks.named("generateBuildConstants").map { it.outputs.files }
+)
+
+tasks.named("compileKotlin") { dependsOn("generateBuildConstants") }
+
+detekt {
+    config.setFrom("$projectDir/detekt.yml")
+    buildUponDefaultConfig = true
 }

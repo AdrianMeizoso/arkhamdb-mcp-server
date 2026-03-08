@@ -4,7 +4,8 @@ import com.arkhamdb.mcp.tools.PdfCache
 import io.modelcontextprotocol.kotlin.sdk.server.Server
 import io.modelcontextprotocol.kotlin.sdk.types.ReadResourceResult
 import io.modelcontextprotocol.kotlin.sdk.types.TextResourceContents
-import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import org.slf4j.LoggerFactory
 
 private val logger = LoggerFactory.getLogger("PdfResources")
@@ -29,35 +30,33 @@ private fun registerPdfResource(server: Server, config: PdfResourceConfig) {
         description = config.description,
         mimeType = "text/plain"
     ) { request ->
-        runBlocking {
-            logger.info("Reading ${config.name}")
+        logger.info("Reading ${config.name}")
 
-            try {
-                val text = PdfCache.load(config.fileName)
+        try {
+            val text = withContext(Dispatchers.IO) { PdfCache.load(config.fileName) }
 
-                logger.info("Successfully extracted ${text.length} characters from ${config.fileName}")
+            logger.info("Successfully extracted ${text.length} characters from ${config.fileName}")
 
-                ReadResourceResult(
-                    contents = listOf(
-                        TextResourceContents(
-                            text = text,
-                            uri = request.uri,
-                            mimeType = "text/plain"
-                        )
+            ReadResourceResult(
+                contents = listOf(
+                    TextResourceContents(
+                        text = text,
+                        uri = request.uri,
+                        mimeType = "text/plain"
                     )
                 )
-            } catch (e: Exception) {
-                logger.error("Error reading PDF: ${config.fileName}", e)
-                ReadResourceResult(
-                    contents = listOf(
-                        TextResourceContents(
-                            text = "Error reading PDF: ${e.message}",
-                            uri = request.uri,
-                            mimeType = "text/plain"
-                        )
+            )
+        } catch (e: Exception) {
+            logger.error("Error reading PDF: ${config.fileName}", e)
+            ReadResourceResult(
+                contents = listOf(
+                    TextResourceContents(
+                        text = "Error reading PDF: ${e.message}",
+                        uri = request.uri,
+                        mimeType = "text/plain"
                     )
                 )
-            }
+            )
         }
     }
 }

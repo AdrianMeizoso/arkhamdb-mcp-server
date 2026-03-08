@@ -9,11 +9,11 @@ import com.arkhamdb.mcp.tools.registerDecklistTools
 import com.arkhamdb.mcp.tools.registerPackTools
 import com.arkhamdb.mcp.tools.registerPdfTools
 import com.arkhamdb.mcp.tools.registerSearchAllPdfsTools
-import io.modelcontextprotocol.kotlin.sdk.Implementation
-import io.modelcontextprotocol.kotlin.sdk.ServerCapabilities
 import io.modelcontextprotocol.kotlin.sdk.server.Server
 import io.modelcontextprotocol.kotlin.sdk.server.ServerOptions
 import io.modelcontextprotocol.kotlin.sdk.server.StdioServerTransport
+import io.modelcontextprotocol.kotlin.sdk.types.Implementation
+import io.modelcontextprotocol.kotlin.sdk.types.ServerCapabilities
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.runBlocking
 import kotlinx.io.asSource
@@ -34,7 +34,7 @@ fun main(): Unit = runBlocking {
         val server = Server(
             serverInfo = Implementation(
                 name = "arkhamdb-mcp-server",
-                version = "1.0.0"
+                version = BuildConstants.VERSION
             ),
             options = ServerOptions(
                 capabilities = ServerCapabilities(
@@ -71,7 +71,7 @@ fun main(): Unit = runBlocking {
 
         // 6. Create session and run
         logger.info("Creating server session...")
-        val session = server.createSession(transport)
+        server.createSession(transport)
 
         logger.info("ArkhamDB MCP Server is running and ready to accept requests")
 

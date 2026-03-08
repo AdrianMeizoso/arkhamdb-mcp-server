@@ -41,7 +41,7 @@ class ArkhamDbClient {
         }
 
         defaultRequest {
-            header("User-Agent", "ArkhamDB-MCP-Server/1.0.0")
+            header("User-Agent", "ArkhamDB-MCP-Server/${BuildConstants.VERSION}")
         }
     }
 
@@ -51,6 +51,9 @@ class ArkhamDbClient {
     suspend fun getAllCards(): Result<List<Card>> = runCatching {
         logger.info("Fetching all cards from ArkhamDB API")
         val response = httpClient.get("$baseUrl/cards/")
+        if (!response.status.isSuccess()) {
+            throw IllegalStateException("API returned ${response.status.value} for cards/")
+        }
         val cards: List<Card> = response.body()
         logger.info("Retrieved ${cards.size} cards")
         cards
@@ -64,6 +67,9 @@ class ArkhamDbClient {
     suspend fun getCard(code: String): Result<Card> = runCatching {
         logger.info("Fetching card with code: $code")
         val response = httpClient.get("$baseUrl/card/$code")
+        if (!response.status.isSuccess()) {
+            throw IllegalStateException("API returned ${response.status.value} for card/$code")
+        }
         val card: Card = response.body()
         logger.info("Retrieved card: ${card.name}")
         card
@@ -77,6 +83,9 @@ class ArkhamDbClient {
     suspend fun getAllPacks(): Result<List<Pack>> = runCatching {
         logger.info("Fetching all packs from ArkhamDB API")
         val response = httpClient.get("$baseUrl/packs/")
+        if (!response.status.isSuccess()) {
+            throw IllegalStateException("API returned ${response.status.value} for packs/")
+        }
         val packs: List<Pack> = response.body()
         logger.info("Retrieved ${packs.size} packs")
         packs
@@ -91,6 +100,9 @@ class ArkhamDbClient {
         logger.info("Fetching all cards (including encounter) from ArkhamDB API")
         val response = httpClient.get("$baseUrl/cards/") {
             parameter("encounter", "1")
+        }
+        if (!response.status.isSuccess()) {
+            throw IllegalStateException("API returned ${response.status.value} for cards/?encounter=1")
         }
         val cards: List<Card> = response.body()
         logger.info("Retrieved ${cards.size} cards (with encounter)")

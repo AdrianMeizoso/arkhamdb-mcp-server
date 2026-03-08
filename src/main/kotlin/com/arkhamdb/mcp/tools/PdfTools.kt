@@ -1,9 +1,11 @@
 package com.arkhamdb.mcp.tools
 
-import io.modelcontextprotocol.kotlin.sdk.CallToolResult
 import io.modelcontextprotocol.kotlin.sdk.server.Server
+import io.modelcontextprotocol.kotlin.sdk.types.CallToolResult
 import io.modelcontextprotocol.kotlin.sdk.types.TextContent
 import io.modelcontextprotocol.kotlin.sdk.types.ToolSchema
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.*
 import org.slf4j.LoggerFactory
 
@@ -30,13 +32,12 @@ IMPORTANT: Las reglas están en español. Usar términos en español en la búsq
             }
         )
     ) { request ->
-        val arguments = request.params.arguments ?: JsonObject(emptyMap())
-        val query = arguments["query"]?.jsonPrimitive?.contentOrNull
+        val query = request.params.arguments.string("query")
 
         logger.info("get_rules called, query: $query")
 
         try {
-            val fullText = PdfCache.load("arkham_horror_rules.pdf")
+            val fullText = withContext(Dispatchers.IO) { PdfCache.load("arkham_horror_rules.pdf") }
             val result = if (query != null) {
                 logger.info("Searching rules for: $query")
                 val searchResult = PdfCache.search(fullText, query)
@@ -75,13 +76,12 @@ IMPORTANT: El FAQ está en español. Usar términos en español en la búsqueda 
             }
         )
     ) { request ->
-        val arguments = request.params.arguments ?: JsonObject(emptyMap())
-        val query = arguments["query"]?.jsonPrimitive?.contentOrNull
+        val query = request.params.arguments.string("query")
 
         logger.info("get_faq called, query: $query")
 
         try {
-            val fullText = PdfCache.load("arkham_horror_faq.pdf")
+            val fullText = withContext(Dispatchers.IO) { PdfCache.load("arkham_horror_faq.pdf") }
             val result = if (query != null) {
                 logger.info("Searching FAQ for: $query")
                 val searchResult = PdfCache.search(fullText, query)
