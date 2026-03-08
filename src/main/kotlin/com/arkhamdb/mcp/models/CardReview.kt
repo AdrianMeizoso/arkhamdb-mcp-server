@@ -3,11 +3,8 @@ package com.arkhamdb.mcp.models
 import kotlinx.serialization.Serializable
 
 @Serializable
-data class CardReview(
-    val id: Int? = null,
-    val title: String? = null,
-    val body: String,
-    val author_username: String? = null,
-    val date_creation: String? = null,
-    val code: String? = null
+data class CardFaq(
+    val code: String? = null,
+    val text: String? = null,
+    val html: String? = null
 )

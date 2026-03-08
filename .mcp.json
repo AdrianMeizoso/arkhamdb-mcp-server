@@ -4,7 +4,7 @@
       "command": "java",
       "args": [
         "-jar",
-        "build/libs/arkhamdb-mcp-server-1.0.0-all.jar"
+        "build/libs/arkhamdb-mcp-server-1.0.4-all.jar"
       ]
     }
   }

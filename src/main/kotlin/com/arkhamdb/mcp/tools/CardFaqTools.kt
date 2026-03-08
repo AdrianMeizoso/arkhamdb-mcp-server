@@ -15,16 +15,15 @@ fun registerCardFaqTools(server: Server, client: ArkhamDbClient) {
     server.addTool(
         name = "get_card_faq",
         description = """Get FAQ rulings and reviews for a specific Arkham Horror LCG card.
-Combines two sources:
-1. Official FAQ PDF (errata and official rulings in Spanish)
-2. ArkhamDB community reviews/rulings from the public API
+Primary source: ArkhamDB API rulings (if sufficient, no PDF is queried).
+Falls back to FAQ PDF and base rules PDF (in parallel) when API has no rulings.
 Provide card_code (e.g., '01006') and/or card_name (in Spanish) to look up the card.
 Use this when a player wants to know how a specific card works in edge cases.""",
         inputSchema = ToolSchema(
             properties = buildJsonObject {
                 put("card_code", buildJsonObject {
                     put("type", JsonPrimitive("string"))
-                    put("description", JsonPrimitive("Card code (e.g., '01006'). Used to fetch API reviews. If provided without card_name, the card name is resolved automatically."))
+                    put("description", JsonPrimitive("Card code (e.g., '01006'). Used to fetch API FAQ. If provided without card_name, the card name is resolved automatically."))
                 })
                 put("card_name", buildJsonObject {
                     put("type", JsonPrimitive("string"))
@@ -68,43 +67,74 @@ Use this when a player wants to know how a specific card works in edge cases."""
                 result.appendLine()
             }
 
-            // Step 1: Fetch API reviews if card_code provided
-            if (cardCode != null) {
-                result.appendLine("## Rulings y Reviews (ArkhamDB API)")
-                result.appendLine()
-                client.getCardReviews(cardCode)
-                    .onSuccess { reviews ->
-                        if (reviews.isEmpty()) {
-                            result.appendLine("_No hay reviews disponibles para esta carta en ArkhamDB._")
+            // Source chain: API FAQ first; fall back to FAQ PDF + base rules PDF (parallel) if insufficient
+            val rulings = SourceChain.primaryOrContrast(
+                primary = SourceChain.Source("API FAQ") {
+                    if (cardCode == null) {
+                        null
+                    } else {
+                        val sb = StringBuilder()
+                        sb.appendLine("## Rulings oficiales (ArkhamDB)")
+                        sb.appendLine()
+                        client.getCardFaq(cardCode)
+                            .onSuccess { faqs ->
+                                if (faqs.isEmpty()) {
+                                    sb.appendLine("_No hay FAQ oficial disponible para esta carta en ArkhamDB._")
+                                } else {
+                                    faqs.forEach { faq -> faq.text?.let { sb.appendLine(it) } }
+                                }
+                            }
+                            .onFailure { error ->
+                                logger.warn("Could not fetch FAQ for $cardCode: ${error.message}")
+                                sb.appendLine("_No se pudo obtener el FAQ de la API: ${error.message}_")
+                            }
+                        sb.toString()
+                    }
+                },
+                fallbacks = listOf(
+                    SourceChain.Source("FAQ PDF") {
+                        val searchName = resolvedCardName
+                        val faqText = if (searchName != null) PdfCache.loadOrNull("arkham_horror_faq.pdf") else null
+                        if (searchName == null || faqText == null) {
+                            null
                         } else {
-                            reviews.forEachIndexed { i, review ->
-                                result.appendLine("### Review ${i + 1}${if (review.title != null) ": ${review.title}" else ""}")
-                                review.author_username?.let { result.appendLine("**Autor:** $it") }
-                                review.date_creation?.let { result.appendLine("**Fecha:** $it") }
-                                result.appendLine()
-                                result.appendLine(review.body)
-                                result.appendLine()
+                            val searchResult = PdfCache.search(faqText, searchName, contextWindow = 8)
+                            if (searchResult.startsWith("No results")) {
+                                null
+                            } else {
+                                buildString {
+                                    appendLine("## FAQ Oficial (PDF en Español)")
+                                    appendLine()
+                                    appendLine(searchResult)
+                                }
+                            }
+                        }
+                    },
+                    SourceChain.Source("Base Rules PDF") {
+                        val searchName = resolvedCardName
+                        val rulesText = if (searchName != null) PdfCache.loadOrNull("arkham_horror_rules.pdf") else null
+                        if (searchName == null || rulesText == null) {
+                            null
+                        } else {
+                            val searchResult = PdfCache.search(rulesText, searchName, contextWindow = 8)
+                            if (searchResult.startsWith("No results")) {
+                                null
+                            } else {
+                                buildString {
+                                    appendLine("## Reglamento (PDF en Español)")
+                                    appendLine()
+                                    appendLine(searchResult)
+                                }
                             }
                         }
                     }
-                    .onFailure { error ->
-                        logger.warn("Could not fetch reviews for $cardCode: ${error.message}")
-                        result.appendLine("_No se pudieron obtener reviews de la API: ${error.message}_")
-                    }
-            }
+                )
+            )
 
-            // Step 2: Search FAQ PDF for card name
-            val searchName = resolvedCardName
-            if (searchName != null) {
-                result.appendLine()
-                result.appendLine("## FAQ Oficial (PDF en Español)")
-                result.appendLine()
-                val faqText = PdfCache.loadOrNull("arkham_horror_faq.pdf")
-                if (faqText != null) {
-                    result.appendLine(PdfCache.search(faqText, searchName, contextWindow = 8))
-                } else {
-                    result.appendLine("_El PDF del FAQ no está disponible. Coloca 'arkham_horror_faq.pdf' en src/main/resources/pdfs/_")
-                }
+            if (rulings != null) {
+                result.append(rulings)
+            } else {
+                result.appendLine("_No se encontraron rulings ni referencias en ninguna fuente._")
             }
 
             CallToolResult(content = listOf(TextContent(text = result.toString())))

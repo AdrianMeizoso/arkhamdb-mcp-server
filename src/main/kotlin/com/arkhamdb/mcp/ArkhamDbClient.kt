@@ -1,7 +1,7 @@
 package com.arkhamdb.mcp
 
 import com.arkhamdb.mcp.models.Card
-import com.arkhamdb.mcp.models.CardReview
+import com.arkhamdb.mcp.models.CardFaq
 import com.arkhamdb.mcp.models.Decklist
 import com.arkhamdb.mcp.models.Pack
 import io.ktor.client.*
@@ -100,16 +100,23 @@ class ArkhamDbClient {
     }
 
     /**
-     * Fetch reviews/rulings for a specific card by its code.
+     * Fetch FAQ/rulings for a specific card by its code.
      */
-    suspend fun getCardReviews(code: String): Result<List<CardReview>> = runCatching {
-        logger.info("Fetching reviews for card: $code")
-        val response = httpClient.get("$baseUrl/reviews/$code")
-        val reviews: List<CardReview> = response.body()
-        logger.info("Retrieved ${reviews.size} reviews for card $code")
-        reviews
+    suspend fun getCardFaq(code: String): Result<List<CardFaq>> = runCatching {
+        logger.info("Fetching FAQ for card: $code")
+        val response: HttpResponse = httpClient.get("$baseUrl/faq/$code")
+        if (!response.status.isSuccess()) {
+            throw IllegalStateException("API returned ${response.status.value} for faq/$code")
+        }
+        val contentType = response.contentType()
+        if (contentType?.contentType != "application" || contentType.contentSubtype != "json") {
+            throw IllegalStateException("Unexpected content type for faq/$code: ${contentType ?: "unknown"}")
+        }
+        val faqs: List<CardFaq> = response.body()
+        logger.info("Retrieved ${faqs.size} FAQ entries for card $code")
+        faqs
     }.onFailure { error ->
-        logger.error("Failed to fetch reviews for card $code", error)
+        logger.error("Failed to fetch FAQ for card $code", error)
     }
 
     /**

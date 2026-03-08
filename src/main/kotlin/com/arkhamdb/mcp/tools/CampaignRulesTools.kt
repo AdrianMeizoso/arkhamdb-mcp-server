@@ -185,31 +185,47 @@ IMPORTANT: Use Spanish terms for the 'query' parameter when searching PDF conten
             }
 
             if (query != null) {
-                // Search campaign PDF
-                var campaignResultText = ""
-                if (campaignPdfText != null) {
-                    campaignResultText = PdfCache.search(campaignPdfText, query)
-                    result.appendLine("## Campaign Guide — Search: \"$query\"")
-                    result.appendLine()
-                    result.appendLine(campaignResultText)
-                    result.appendLine()
-                }
-
-                // Cross-reference base rules only when campaign results are sparse or missing
-                val campaignResultSparse = campaignResultText.isBlank() ||
-                    campaignResultText.startsWith("No results") ||
-                    campaignResultText.lines().size < 10
-                if (campaignResultSparse) {
-                    val baseRulesText = PdfCache.loadOrNull("arkham_horror_rules.pdf")
-                    if (baseRulesText != null) {
-                        val baseResult = PdfCache.search(baseRulesText, query)
-                        if (!baseResult.startsWith("No results")) {
-                            result.appendLine("## Base Rules Cross-Reference — \"$query\"")
-                            result.appendLine()
-                            result.appendLine(baseResult)
-                            result.appendLine()
+                // Source chain: campaign PDF first; fall back to base rules PDF if insufficient
+                val rulings = SourceChain.primaryOrContrast(
+                    primary = SourceChain.Source("Campaign PDF") {
+                        if (campaignPdfText == null) {
+                            null
+                        } else {
+                            val searchResult = PdfCache.search(campaignPdfText, query)
+                            if (searchResult.isBlank() || searchResult.startsWith("No results")) {
+                                null
+                            } else {
+                                buildString {
+                                    appendLine("## Campaign Guide — Search: \"$query\"")
+                                    appendLine()
+                                    appendLine(searchResult)
+                                }
+                            }
                         }
-                    }
+                    },
+                    fallbacks = listOf(
+                        SourceChain.Source("Base Rules PDF") {
+                            val baseRulesText = PdfCache.loadOrNull("arkham_horror_rules.pdf")
+                            if (baseRulesText == null) {
+                                null
+                            } else {
+                                val searchResult = PdfCache.search(baseRulesText, query)
+                                if (searchResult.startsWith("No results")) {
+                                    null
+                                } else {
+                                    buildString {
+                                        appendLine("## Base Rules Cross-Reference — \"$query\"")
+                                        appendLine()
+                                        appendLine(searchResult)
+                                    }
+                                }
+                            }
+                        }
+                    )
+                )
+                if (rulings != null) {
+                    result.appendLine(rulings)
+                    result.appendLine()
                 }
             } else if (campaignPdfText != null) {
                 // No query — return the first 100 lines (table of contents / index area)
