@@ -25,14 +25,10 @@ fun registerDecklistTools(server: Server, client: ArkhamDbClient) {
             required = listOf("id")
         )
     ) { request ->
-        val id = request.params.arguments.int("id")
-
-        if (id == null) {
-            return@addTool CallToolResult(
-                content = listOf(TextContent(text = "Error: 'id' parameter is required and must be a number")),
-                isError = true
-            )
-        }
+        val id = request.params.arguments.int("id") ?: return@addTool CallToolResult(
+            content = listOf(TextContent(text = "Error: 'id' parameter is required and must be a number")),
+            isError = true
+        )
 
         logger.info("Getting decklist with id: $id")
 
@@ -50,6 +46,46 @@ fun registerDecklistTools(server: Server, client: ArkhamDbClient) {
                 logger.error("Error getting decklist $id", error)
                 CallToolResult(
                     content = listOf(TextContent(text = "Decklist not found: $id. Error: ${error.message}")),
+                    isError = true
+                )
+            }
+    }
+
+    // Tool: get_deck
+    server.addTool(
+        name = "get_deck",
+        description = "Retrieve a user deck by its ID from ArkhamDB using the /api/public/deck/ endpoint. Use this for decks shared via URL that may not be published to the public gallery.",
+        inputSchema = ToolSchema(
+            properties = buildJsonObject {
+                put("id", buildJsonObject {
+                    put("type", JsonPrimitive("number"))
+                    put("description", JsonPrimitive("The deck ID number (from the URL, e.g. 5765603)"))
+                })
+            },
+            required = listOf("id")
+        )
+    ) { request ->
+        val id = request.params.arguments.int("id") ?: return@addTool CallToolResult(
+            content = listOf(TextContent(text = "Error: 'id' parameter is required and must be a number")),
+            isError = true
+        )
+
+        logger.info("Getting deck with id: $id")
+
+        client.getDeck(id)
+            .map { decklist ->
+                CallToolResult(
+                    content = listOf(
+                        TextContent(
+                            text = Json.encodeToString(com.arkhamdb.mcp.models.Decklist.serializer(), decklist)
+                        )
+                    )
+                )
+            }
+            .getOrElse { error ->
+                logger.error("Error getting deck $id", error)
+                CallToolResult(
+                    content = listOf(TextContent(text = "Deck not found: $id. Error: ${error.message}")),
                     isError = true
                 )
             }

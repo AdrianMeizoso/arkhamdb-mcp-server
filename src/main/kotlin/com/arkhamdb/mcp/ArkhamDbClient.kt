@@ -152,6 +152,25 @@ class ArkhamDbClient {
     }
 
     /**
+     * Fetch a user deck by its ID (shared via URL, not necessarily published to gallery).
+     */
+    suspend fun getDeck(id: Int): Result<Decklist> = runCatching {
+        logger.info("Fetching deck with id: $id")
+        val response: HttpResponse = httpClient.get("$baseUrl/deck/$id")
+
+        val contentType = response.contentType()
+        if (contentType?.contentType != "application" || contentType.contentSubtype != "json") {
+            throw IllegalStateException("Deck not found (API returned ${contentType ?: "unknown content type"})")
+        }
+
+        val decklist: Decklist = response.body()
+        logger.info("Retrieved deck: ${decklist.name}")
+        decklist
+    }.onFailure { error ->
+        logger.error("Failed to fetch deck $id", error)
+    }
+
+    /**
      * Close the HTTP client when done.
      */
     fun close() {

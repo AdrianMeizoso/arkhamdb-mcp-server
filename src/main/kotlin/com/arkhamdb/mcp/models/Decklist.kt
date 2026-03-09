@@ -10,7 +10,7 @@ data class Decklist(
     val date_creation: String,
     val date_update: String,
     val description_md: String? = null,
-    val user_id: Int,
+    val user_id: Int? = null,
     val investigator_code: String,
     val investigator_name: String,
     val slots: Map<String, Int>,
