@@ -70,6 +70,7 @@ tasks.shadowJar {
 
 val generateBuildConstants by tasks.registering {
     val outputDir = layout.buildDirectory.dir("generated/buildConstants")
+    val versionValue = project.version.toString() // Capture during configuration
     outputs.dir(outputDir)
     doLast {
         val dir = outputDir.get().asFile
@@ -77,7 +78,7 @@ val generateBuildConstants by tasks.registering {
         File(dir, "BuildConstants.kt").writeText(
             """
             package com.arkhamdb.mcp
-            object BuildConstants { const val VERSION = "${project.version}" }
+            object BuildConstants { const val VERSION = "$versionValue" }
             """.trimIndent()
         )
     }
