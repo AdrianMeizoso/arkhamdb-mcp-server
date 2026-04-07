@@ -98,6 +98,43 @@ class PdfCacheSearchTest {
     }
 
     @Test
+    fun `headingMatchIsPrioritized`() {
+        // Glossary heading "Agotado" appears early, with its definition following.
+        // The same term also appears buried in longer lines further down.
+        val lines = mutableListOf<String>()
+        lines.add("Algún texto introductorio sin relevancia")
+        lines.add("Agotado")   // short heading — should be detected by Pass 0
+        lines.add("Definición: cuando una carta se agota se gira 90 grados.")
+        lines.add("Otra línea de relleno")
+        repeat(20) { lines.add("Esta línea muy larga habla de agotado en un contexto completamente diferente $it") }
+        val text = lines.joinToString("\n")
+        val result = PdfCache.search(text, "agotado", contextWindow = 2)
+        // The heading section must appear before the buried long-line matches
+        val headingPos = result.indexOf("Agotado\n")
+        val definitionPos = result.indexOf("Definición:")
+        assertTrue(headingPos >= 0, "Expected heading 'Agotado' in result")
+        assertTrue(definitionPos >= 0, "Expected definition line in result")
+        assertTrue(headingPos < definitionPos, "Heading should appear before definition in output")
+    }
+
+    @Test
+    fun `shortLineMatchGetsExtendedContext`() {
+        // Glossary heading + definition: with contextWindow=2 the Pass 0 extends to contextWindow*2=4 lines
+        val lines = mutableListOf<String>()
+        lines.add("irrelevant line 0")
+        lines.add("Preparado")   // heading at index 1
+        lines.add("def line 1")
+        lines.add("def line 2")
+        lines.add("def line 3")
+        lines.add("def line 4")  // index 5 — only reachable with extended context (1 + 2*2 = 5)
+        lines.add("def line 5")  // index 6 — beyond even extended context
+        val text = lines.joinToString("\n")
+        val result = PdfCache.search(text, "preparado", contextWindow = 2)
+        // Extended context = index + contextWindow*2 = 1 + 4 = 5, so "def line 4" should be included
+        assertContains(result, "def line 4")
+    }
+
+    @Test
     fun `OR match capped at maxSections divided by 2`() {
         // 20 lines each with a different individual term, query has 2 terms
         // OR cap = maxSections/2 = 5 → at most 5 sections

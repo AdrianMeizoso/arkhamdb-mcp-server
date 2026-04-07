@@ -1,5 +1,6 @@
 package com.arkhamdb.mcp
 
+import com.arkhamdb.mcp.prompts.registerRulesPrompts
 import com.arkhamdb.mcp.resources.registerResources
 import com.arkhamdb.mcp.resources.registerPdfResources
 import com.arkhamdb.mcp.tools.registerCampaignRulesTools
@@ -42,7 +43,8 @@ fun main(): Unit = runBlocking {
                     resources = ServerCapabilities.Resources(
                         subscribe = false,
                         listChanged = false
-                    )
+                    ),
+                    prompts = ServerCapabilities.Prompts(listChanged = false)
                 )
             )
         )
@@ -57,19 +59,23 @@ fun main(): Unit = runBlocking {
         registerCardFaqTools(server, arkhamClient)
         registerCampaignRulesTools(server, arkhamClient)
 
-        // 4. Register all resources
+        // 4. Register prompts
+        logger.info("Registering prompts...")
+        registerRulesPrompts(server)
+
+        // 5. Register all resources
         logger.info("Registering resources...")
         registerResources(server, arkhamClient)
         registerPdfResources(server)
 
-        // 5. Setup STDIO transport
+        // 6. Setup STDIO transport
         logger.info("Setting up STDIO transport...")
         val transport = StdioServerTransport(
             inputStream = System.`in`.asSource().buffered(),
             outputStream = System.out.asSink().buffered()
         )
 
-        // 6. Create session and run
+        // 7. Create session and run
         logger.info("Creating server session...")
         server.createSession(transport)
 

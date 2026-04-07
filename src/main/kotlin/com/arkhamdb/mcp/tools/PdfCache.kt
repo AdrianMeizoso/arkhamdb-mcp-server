@@ -90,7 +90,23 @@ object PdfCache {
             matchRanges.add(start..end)
         }
 
+        // Pass 0: heading/glossary detection — short line whose content IS the search term(s)
+        // Detects glossary entries like "Agotar, Agotado" or "Preparado" and returns them first
+        // with extended context so the full definition is included.
+        lines.forEachIndexed { index, line ->
+            val trimmed = line.trim()
+            if (trimmed.length < 60 && trimmed.isNotBlank()) {
+                val trimmedLower = trimmed.lowercase()
+                if (terms.all { trimmedLower.contains(it) }) {
+                    val start = maxOf(0, index - 1)
+                    val end = minOf(lines.size - 1, index + contextWindow * 2)
+                    matchRanges.add(start..end)
+                }
+            }
+        }
+
         // Pass 1: exact phrase (only meaningful for multi-word queries)
+        // Runs alongside Pass 0 so symmetric context is preserved for phrase matches.
         if (terms.size > 1) {
             lines.forEachIndexed { index, line ->
                 if (line.lowercase().contains(queryLower)) addMatch(index)

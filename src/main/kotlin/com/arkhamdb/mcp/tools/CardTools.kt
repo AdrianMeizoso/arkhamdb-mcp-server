@@ -42,6 +42,10 @@ IMPORTANT: Card data is in Spanish. Use Spanish terms for searches:
                     put("type", JsonPrimitive("string"))
                     put("description", JsonPrimitive("Filter by pack code (e.g., 'core', 'dwl', 'ptc')"))
                 })
+                put("xp", buildJsonObject {
+                    put("type", JsonPrimitive("integer"))
+                    put("description", JsonPrimitive("Filtrar por nivel de experiencia (0-5). Ej: 4 para la versión de 4 XP"))
+                })
                 put("include_encounter", buildJsonObject {
                     put("type", JsonPrimitive("boolean"))
                     put("description", JsonPrimitive("Include encounter cards (traiciones, enemigos, lugares de escenario). Default: false"))
@@ -55,9 +59,10 @@ IMPORTANT: Card data is in Spanish. Use Spanish terms for searches:
         val typeFilter = arguments.string("type")
         val traitsFilter = arguments.string("traits")
         val packFilter = arguments.string("pack_code")
+        val xpFilter = arguments.int("xp")
         val includeEncounter = arguments.boolean("include_encounter")
 
-        logger.info("Searching cards - name: $nameFilter, faction: $factionFilter, type: $typeFilter, traits: $traitsFilter, pack: $packFilter, encounter: $includeEncounter")
+        logger.info("Searching cards - name: $nameFilter, faction: $factionFilter, type: $typeFilter, traits: $traitsFilter, pack: $packFilter, xp: $xpFilter, encounter: $includeEncounter")
 
         val cardsResult = if (includeEncounter) client.getAllCardsWithEncounter() else client.getAllCards()
 
@@ -94,6 +99,10 @@ IMPORTANT: Card data is in Spanish. Use Spanish terms for searches:
                     filtered = filtered.filter { card ->
                         card.pack_code.equals(pack, ignoreCase = true)
                     }
+                }
+
+                xpFilter?.let { xp ->
+                    filtered = filtered.filter { card -> card.xp == xp }
                 }
 
                 logger.info("Found ${filtered.size} cards matching filters")
